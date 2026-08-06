@@ -9,7 +9,6 @@ import {
   CheckCircle,
   AlertCircle,
   Play,
-  Terminal,
   RefreshCw,
   Info
 } from 'lucide-react';
@@ -33,7 +32,6 @@ export const WindowsSettingsView: React.FC<WindowsSettingsViewProps> = ({
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   );
-  const [downloadNotice, setDownloadNotice] = useState(false);
 
   const requestWebNotifications = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -44,33 +42,6 @@ export const WindowsSettingsView: React.FC<WindowsSettingsViewProps> = ({
         onTestNotification();
       }
     }
-  };
-
-  // Generate downloadable Windows 11 startup shortcut (.bat script)
-  const handleDownloadWindowsStartupScript = () => {
-    const currentUrl = typeof window !== 'undefined' ? window.location.href : 'http://localhost:3000';
-    const scriptContent = `@echo off
-:: Vigilancias - Script de arranque automatico com o Windows 11
-echo A configurar o arranque do Vigilancias...
-set STARTUP_DIR="%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
-set SHORTCUT_NAME="VigilanciasApp.url"
-
-echo [InternetShortcut] > "%STARTUP_DIR%\\%SHORTCUT_NAME%"
-echo URL=${currentUrl} >> "%STARTUP_DIR%\\%SHORTCUT_NAME%"
-echo IconIndex=0 >> "%STARTUP_DIR%\\%SHORTCUT_NAME%"
-
-echo [OK] O Vigilancias iniciara automaticamente ao ligar o Windows 11.
-pause
-`;
-    const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Configurar_Arranque_Windows11_Vigilancias.bat';
-    a.click();
-    URL.revokeObjectURL(url);
-    setDownloadNotice(true);
-    setTimeout(() => setDownloadNotice(false), 4000);
   };
 
   return (
@@ -113,34 +84,6 @@ pause
             />
             <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
           </label>
-        </div>
-
-        {/* Script Download Box */}
-        <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-200 space-y-3">
-          <div className="flex items-center justify-between text-xs font-medium text-zinc-800">
-            <span className="flex items-center text-zinc-900 font-semibold">
-              <Terminal className="w-4 h-4 text-zinc-600 mr-2" />
-              Instalador de Atalho de Arranque Automático para o Windows 11
-            </span>
-            <button
-              onClick={handleDownloadWindowsStartupScript}
-              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Descarregar Ficheiro .BAT</span>
-            </button>
-          </div>
-
-          <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Ao clicar no botão acima, é gerado um ficheiro executável de atalho seguro para a pasta de arranque do Windows (<code className="bg-zinc-200 px-1 py-0.5 rounded text-zinc-800 font-mono">shell:startup</code>). Basta descarregar e executar uma vez no computador da consulta.
-          </p>
-
-          {downloadNotice && (
-            <div className="bg-emerald-50 text-emerald-800 p-2.5 rounded-lg text-xs font-medium flex items-center space-x-2 border border-emerald-200">
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
-              <span>Ficheiro .BAT descarregado com sucesso! Execute-o para concluir a configuração.</span>
-            </div>
-          )}
         </div>
       </div>
 
