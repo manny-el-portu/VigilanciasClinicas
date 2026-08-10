@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Laptop,
   Bell,
@@ -10,9 +10,11 @@ import {
   AlertCircle,
   Play,
   RefreshCw,
-  Info
+  Info,
+  Check
 } from 'lucide-react';
 import { AppSettings } from '../types';
+import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart';
 
 interface WindowsSettingsViewProps {
   settings: AppSettings;
@@ -32,6 +34,41 @@ export const WindowsSettingsView: React.FC<WindowsSettingsViewProps> = ({
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   );
+  const [isTauriEnv, setIsTauriEnv] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkTauriAutostart() {
+      try {
+        if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+          const enabled = await isAutostartEnabled();
+          if (isMounted) {
+            setIsTauriEnv(true);
+            onUpdateSettings({ ...settings, autostartWindows: enabled });
+          }
+        }
+      } catch (e) {
+        // Web mode fallback
+      }
+    }
+    checkTauriAutostart();
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleToggleAutostart = async (checked: boolean) => {
+    onUpdateSettings({ ...settings, autostartWindows: checked });
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        if (checked) {
+          await enableAutostart();
+        } else {
+          await disableAutostart();
+        }
+      }
+    } catch (err) {
+      console.error('Tauri autostart error:', err);
+    }
+  };
 
   const requestWebNotifications = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -66,10 +103,10 @@ export const WindowsSettingsView: React.FC<WindowsSettingsViewProps> = ({
           <div className="space-y-1">
             <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider flex items-center">
               <Laptop className="w-4 h-4 text-emerald-600 mr-2" />
-              1. Iniciar com o arranque do Windows 11
+              1. Iniciar com o arranque do Windows 11 ({isTauriEnv ? 'Plugin Nativo Tauri' : 'Modo Web / Desktop'})
             </h3>
             <p className="text-xs text-zinc-600 leading-relaxed max-w-xl">
-              Permite que o Vigilâncias seja lançado automaticamente quando liga o computador da consulta.
+              Permite que o Vigilâncias seja lançado automaticamente em segundo plano assim que liga o computador do consultório (sem necessidade de privilégios de administrador).
             </p>
           </div>
 
@@ -77,14 +114,19 @@ export const WindowsSettingsView: React.FC<WindowsSettingsViewProps> = ({
             <input
               type="checkbox"
               checked={settings.autostartWindows}
-              onChange={(e) =>
-                onUpdateSettings({ ...settings, autostartWindows: e.target.checked })
-              }
+              onChange={(e) => handleToggleAutostart(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
           </label>
         </div>
+
+        {isTauriEnv && (
+          <div className="bg-emerald-50 text-emerald-900 p-3 rounded-lg text-xs flex items-center space-x-2 border border-emerald-200">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Plugin de arranque automático detetado e ativo no ambiente de trabalho.</span>
+          </div>
+        )}
       </div>
 
       {/* Section 2: Background Tray & Desktop Notifications */}

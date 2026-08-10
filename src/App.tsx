@@ -293,7 +293,7 @@ export default function App() {
   };
 
   // Export JSON Backup
-  const handleExportJson = () => {
+  const handleExportJson = async () => {
     const data = {
       patients,
       surveillanceItems,
@@ -302,14 +302,46 @@ export default function App() {
       exportedAt: new Date().toISOString(),
     };
     const jsonStr = JSON.stringify(data, null, 2);
+    const defaultFilename = `Vigilancias_Backup_${new Date().toISOString().split('T')[0]}.json`;
+
+    // Try native Tauri File Explorer Save Dialog if in desktop app
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+        const filePath = await save({
+          defaultPath: defaultFilename,
+          filters: [
+            {
+              name: 'Ficheiros JSON',
+              extensions: ['json'],
+            },
+          ],
+        });
+
+        if (filePath) {
+          await writeTextFile(filePath, jsonStr);
+          showToast('Cópia de segurança guardada no local selecionado!');
+          return;
+        } else {
+          // User cancelled save dialog
+          return;
+        }
+      } catch (err) {
+        console.warn('Tauri dialog save fallback to browser download:', err);
+      }
+    }
+
+    // Browser download fallback
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Vigilancias_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = defaultFilename;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Backup JSON exportado com sucesso.');
+    showToast('Backup JSON descarregado com sucesso.');
   };
 
   // Import JSON Backup

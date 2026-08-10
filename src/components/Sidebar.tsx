@@ -76,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'settings',
-      label: 'Windows 11 & Configuração',
+      label: 'Configurações',
       icon: Settings,
     },
   ];
