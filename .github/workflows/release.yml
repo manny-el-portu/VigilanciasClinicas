@@ -41,7 +41,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: install frontend dependencies
-        run: npm install
+        shell: bash
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: build frontend
         run: npm run build
