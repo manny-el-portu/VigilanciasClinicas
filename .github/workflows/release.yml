@@ -56,8 +56,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: '.'
-          tagName: v__VERSION__
-          releaseName: 'Vigilâncias v__VERSION__'
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          releaseName: 'Vigilâncias ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}'
           releaseBody: 'Consulte os instaladores disponíveis para Windows, macOS e Linux.'
           releaseDraft: true
           prerelease: false

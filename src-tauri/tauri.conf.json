@@ -44,11 +44,5 @@
       }
     }
   },
-  "plugins": {
-    "autostart": {
-      "macOS": {
-        "autoLaunch": true
-      }
-    }
-  }
+  "plugins": {}
 }
