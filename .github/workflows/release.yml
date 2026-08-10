@@ -47,7 +47,9 @@ jobs:
           npm install
 
       - name: build frontend
-        run: npm run build
+        run: |
+          npm run generate:icon
+          npm run build
 
       - uses: tauri-apps/tauri-action@v0
         env:
