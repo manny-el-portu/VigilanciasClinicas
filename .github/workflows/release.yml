@@ -50,6 +50,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: '.'
           tagName: v__VERSION__
           releaseName: 'Vigilâncias v__VERSION__'
           releaseBody: 'Consulte os instaladores disponíveis para Windows, macOS e Linux.'
