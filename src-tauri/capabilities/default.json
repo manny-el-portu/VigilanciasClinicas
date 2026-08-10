@@ -10,7 +10,10 @@
     "autostart:allow-is-enabled",
     "dialog:allow-save",
     "dialog:allow-open",
+    "fs:default",
     "fs:allow-write-text-file",
-    "fs:allow-read-text-file"
+    "fs:allow-read-text-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir"
   ]
 }

@@ -72,7 +72,7 @@ export function resolveItemStatus(item: SurveillanceItem, leadDays: number = 30)
   return 'pendente';
 }
 
-// API Server File Persistence (Disk Storage outside Browser Cache)
+// API / Native Disk Storage Persistence (Supports both Express Server and Standalone Tauri Executable)
 export async function fetchDatabaseFromDisk(): Promise<{
   patients: Patient[];
   surveillanceItems: SurveillanceItem[];
@@ -81,23 +81,66 @@ export async function fetchDatabaseFromDisk(): Promise<{
   storagePath?: string;
   lastSaved?: string;
 } | null> {
+  // 1. Try Express API (/api/db) if running web/dev server
   try {
     const res = await fetch('/api/db');
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.success && json.data) {
-      return {
-        patients: json.data.patients || [],
-        surveillanceItems: json.data.surveillanceItems || [],
-        settings: { ...DEFAULT_SETTINGS, ...(json.data.settings || {}) },
-        customPresets: json.data.customPresets || [],
-        storagePath: json.storagePath,
-        lastSaved: json.data.lastSaved,
-      };
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data) {
+        return {
+          patients: json.data.patients || [],
+          surveillanceItems: json.data.surveillanceItems || [],
+          settings: { ...DEFAULT_SETTINGS, ...(json.data.settings || {}) },
+          customPresets: json.data.customPresets || [],
+          storagePath: json.storagePath,
+          lastSaved: json.data.lastSaved,
+        };
+      }
     }
   } catch (e) {
-    console.warn('Could not reach disk DB API, falling back to localStorage cache:', e);
+    // API server not active
   }
+
+  // 2. Try Tauri desktop plugin-fs if running as native app
+  if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    try {
+      const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
+      const fileExists = await exists('data/vigilancias_db.json');
+      if (fileExists) {
+        const raw = await readTextFile('data/vigilancias_db.json');
+        const data = JSON.parse(raw);
+        return {
+          patients: data.patients || [],
+          surveillanceItems: data.surveillanceItems || [],
+          settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+          customPresets: data.customPresets || [],
+          storagePath: 'data/vigilancias_db.json',
+          lastSaved: data.lastSaved,
+        };
+      }
+    } catch (err) {
+      console.warn('Tauri fs read skipped:', err);
+    }
+  }
+
+  // 3. Fallback to browser/webview localStorage cache
+  try {
+    const p = loadPatients();
+    const s = loadSurveillanceItems();
+    const st = loadAppSettings();
+    const cp = loadCustomPresets();
+    return {
+      patients: p,
+      surveillanceItems: s,
+      settings: st,
+      customPresets: cp,
+      storagePath: 'Armazenamento Local (localStorage)',
+      lastSaved: new Date().toISOString(),
+    };
+  } catch (e) {
+    console.error('Failed to load fallback localStorage data', e);
+  }
+
   return null;
 }
 
@@ -107,18 +150,59 @@ export async function saveDatabaseToDisk(
   settings: AppSettings,
   customPresets?: MedicalPreset[]
 ): Promise<{ success: boolean; lastSaved?: string; storagePath?: string }> {
+  // Always update localStorage synchronously so user data is instantly saved in webview
+  savePatients(patients);
+  saveSurveillanceItems(surveillanceItems);
+  saveAppSettings(settings);
+  if (customPresets) saveCustomPresets(customPresets);
+
+  const payload = {
+    patients,
+    surveillanceItems,
+    settings,
+    customPresets: customPresets || [],
+    lastSaved: new Date().toISOString(),
+  };
+
+  // 1. Try Express API (/api/db)
   try {
     const res = await fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patients, surveillanceItems, settings, customPresets: customPresets || [] }),
+      body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    return json;
+    if (res.ok) {
+      const json = await res.json();
+      return json;
+    }
   } catch (e) {
-    console.error('Failed to persist database to local disk:', e);
-    return { success: false };
+    // API server not active
   }
+
+  // 2. Try Tauri desktop plugin-fs if running as native app
+  if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    try {
+      const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
+      const dirExists = await exists('data');
+      if (!dirExists) {
+        await mkdir('data', { recursive: true });
+      }
+      await writeTextFile('data/vigilancias_db.json', JSON.stringify(payload, null, 2));
+      return {
+        success: true,
+        lastSaved: payload.lastSaved,
+        storagePath: 'data/vigilancias_db.json',
+      };
+    } catch (err) {
+      console.warn('Tauri fs write failed:', err);
+    }
+  }
+
+  return {
+    success: true,
+    lastSaved: payload.lastSaved,
+    storagePath: 'Armazenamento Local (localStorage)',
+  };
 }
 
 // Load custom user presets from localStorage

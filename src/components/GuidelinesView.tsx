@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { consultGuidelineAi } from '../utils/aiGuidelineService';
 import {
   BookOpen,
   Sparkles,
@@ -65,18 +66,13 @@ export const GuidelinesView: React.FC<GuidelinesViewProps> = ({
     setAiResponse(null);
 
     try {
-      const res = await fetch('/api/gemini/guideline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          diagnosis: queryDiagnosis,
-          examType: queryExam,
-          patientAge: queryAge,
-          patientSex: querySex,
-        }),
-      });
-
-      const data = await res.json();
+      const data = await consultGuidelineAi(
+        queryDiagnosis,
+        queryExam,
+        queryAge,
+        querySex,
+        customPresets
+      );
       setAiResponse(data);
     } catch (e) {
       console.error(e);

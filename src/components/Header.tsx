@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Bell, Shield, Laptop, Copy, Check, Search, Calendar, Sliders, Layout } from 'lucide-react';
 import { AppSettings, SurveillanceItem } from '../types';
+import appLogo from '../assets/images/app_icon_1786371578784.jpg';
 
 interface HeaderProps {
   settings: AppSettings;
@@ -87,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-zinc-200 flex-shrink-0">
             <img
-              src="/src/assets/images/app_icon_1786371578784.jpg"
+              src={appLogo}
               alt="Vigilâncias Clínicas Logo"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

@@ -3,6 +3,7 @@ import { X, Sparkles, BookOpen, UserCheck, AlertCircle, Calendar, Check, HelpCir
 import { SurveillanceItem, Patient, ExamCategory, PriorityLevel, Sex, GuidelineResponse, MedicalPreset } from '../types';
 import { MEDICAL_PRESETS } from '../data/medicalPresets';
 import { isValidSns, calculateTargetDate } from '../utils/storage';
+import { consultGuidelineAi } from '../utils/aiGuidelineService';
 
 interface SurveillanceModalProps {
   isOpen: boolean;
@@ -130,20 +131,7 @@ export const SurveillanceModal: React.FC<SurveillanceModalProps> = ({
     setAiResult(null);
 
     try {
-      const res = await fetch('/api/gemini/guideline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          diagnosis,
-          examType,
-          patientAge: age,
-          patientSex: sex,
-        }),
-      });
-
-      if (!res.ok) throw new Error('Falha na resposta do servidor');
-
-      const data: GuidelineResponse = await res.json();
+      const data = await consultGuidelineAi(diagnosis, examType, age, sex, customPresets);
       setAiResult(data);
 
       // Auto apply suggested values
