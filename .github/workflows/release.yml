@@ -43,7 +43,7 @@ jobs:
       - name: install frontend dependencies
         shell: bash
         run: |
-          rm -rf node_modules package-lock.json
+          rm -rf node_modules package-lock.json bun.lock bun.lockb
           npm install
 
       - name: build frontend

@@ -85,8 +85,13 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         {/* Brand & Title */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-950 text-white flex items-center justify-center shadow-sm border border-zinc-700/50">
-            <Calendar className="w-5 h-5 text-indigo-300" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-zinc-200 flex-shrink-0">
+            <img
+              src="/src/assets/images/app_icon_1786371578784.jpg"
+              alt="Vigilâncias Clínicas Logo"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div>
             <div className="flex items-center space-x-2">

@@ -1,15 +1,37 @@
 const fs = require('fs');
 const path = require('path');
 const { PNG } = require('pngjs');
+const jpeg = require('jpeg-js');
 
-function resizePNG(srcPng, targetWidth, targetHeight) {
+function loadSourceImage() {
+  const imagesDir = path.join(__dirname, '../src/assets/images');
+  if (fs.existsSync(imagesDir)) {
+    const files = fs.readdirSync(imagesDir);
+    const appIconFile = files.find(f => f.startsWith('app_icon_') && (f.endsWith('.jpg') || f.endsWith('.jpeg') || f.endsWith('.png')));
+    if (appIconFile) {
+      const imgPath = path.join(imagesDir, appIconFile);
+      console.log('Loading icon source image from:', imgPath);
+      if (appIconFile.endsWith('.png')) {
+        return PNG.sync.read(fs.readFileSync(imgPath));
+      } else {
+        const jpegData = fs.readFileSync(imgPath);
+        const raw = jpeg.decode(jpegData, { useTolerant: true });
+        const png = new PNG({ width: raw.width, height: raw.height });
+        png.data = Buffer.from(raw.data);
+        return png;
+      }
+    }
+  }
+  return null;
+}
+
+function resizeImage(srcPng, targetWidth, targetHeight) {
   const dstPng = new PNG({ width: targetWidth, height: targetHeight });
   const srcW = srcPng.width;
   const srcH = srcPng.height;
 
   for (let y = 0; y < targetHeight; y++) {
     for (let x = 0; x < targetWidth; x++) {
-      // Area box sampling for crisp downscaling
       const x0 = Math.floor(x * srcW / targetWidth);
       const x1 = Math.min(srcW - 1, Math.floor((x + 1) * srcW / targetWidth));
       const y0 = Math.floor(y * srcH / targetHeight);
@@ -35,6 +57,53 @@ function resizePNG(srcPng, targetWidth, targetHeight) {
     }
   }
   return dstPng;
+}
+
+function drawFallbackIcon(width, height) {
+  const png = new PNG({ width, height });
+  const radius = Math.floor(width * 0.2);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+
+      const nx = (x / (width - 1)) * 2 - 1;
+      const ny = (y / (height - 1)) * 2 - 1;
+
+      const cx = Math.max(0, Math.abs(x - width / 2) - (width / 2 - radius));
+      const cy = Math.max(0, Math.abs(y - height / 2) - (height / 2 - radius));
+      const dist = Math.sqrt(cx * cx + cy * cy);
+
+      if (dist > radius) {
+        png.data[idx] = 0;
+        png.data[idx + 1] = 0;
+        png.data[idx + 2] = 0;
+        png.data[idx + 3] = 0;
+        continue;
+      }
+
+      const t = (ny + 1) / 2;
+      let r = Math.round(2 * (1 - t) + 15 * t);
+      let g = Math.round(132 * (1 - t) + 23 * t);
+      let b = Math.round(199 * (1 - t) + 42 * t);
+      let a = 255;
+
+      const isCrossVertical = Math.abs(nx) < 0.16 && Math.abs(ny) < 0.48;
+      const isCrossHorizontal = Math.abs(ny) < 0.16 && Math.abs(nx) < 0.48;
+
+      if (isCrossVertical || isCrossHorizontal) {
+        r = 255;
+        g = 255;
+        b = 255;
+      }
+
+      png.data[idx] = r;
+      png.data[idx + 1] = g;
+      png.data[idx + 2] = b;
+      png.data[idx + 3] = a;
+    }
+  }
+  return png;
 }
 
 function createUncompressedIco(pngList) {
@@ -130,17 +199,53 @@ function createUncompressedIco(pngList) {
 }
 
 function generate() {
-  const sourcePath = path.join(__dirname, '../src-tauri/icons/128x128.png');
-  const targetPath = path.join(__dirname, '../src-tauri/icons/icon.ico');
+  const iconsDir = path.join(__dirname, '../src-tauri/icons');
+  if (!fs.existsSync(iconsDir)) {
+    fs.mkdirSync(iconsDir, { recursive: true });
+  }
 
-  const baseImage = PNG.sync.read(fs.readFileSync(sourcePath));
-  const sizes = [16, 24, 32, 48, 64, 128];
+  const sourcePng = loadSourceImage();
+  function getIcon(w, h) {
+    if (sourcePng) {
+      return resizeImage(sourcePng, w, h);
+    } else {
+      return drawFallbackIcon(w, h);
+    }
+  }
 
-  const pngs = sizes.map(sz => resizePNG(baseImage, sz, sz));
-  const icoBuffer = createUncompressedIco(pngs);
+  // Map of filenames to sizes
+  const pngTargets = {
+    '32x32.png': [32, 32],
+    '64x64.png': [64, 64],
+    '128x128.png': [128, 128],
+    '128x128@2x.png': [256, 256],
+    'icon.png': [512, 512],
+    'Square30x30Logo.png': [30, 30],
+    'Square44x44Logo.png': [44, 44],
+    'Square71x71Logo.png': [71, 71],
+    'Square89x89Logo.png': [89, 89],
+    'Square107x107Logo.png': [107, 107],
+    'Square142x142Logo.png': [142, 142],
+    'Square150x150Logo.png': [150, 150],
+    'Square284x284Logo.png': [284, 284],
+    'Square310x310Logo.png': [310, 310],
+    'StoreLogo.png': [50, 50]
+  };
 
-  fs.writeFileSync(targetPath, icoBuffer);
-  console.log(`Generated uncompressed Windows icon.ico (${icoBuffer.length} bytes) with sizes: ${sizes.join(', ')}`);
+  for (const [filename, [w, h]] of Object.entries(pngTargets)) {
+    const png = getIcon(w, h);
+    const buf = PNG.sync.write(png);
+    fs.writeFileSync(path.join(iconsDir, filename), buf);
+  }
+  console.log('Generated all clean PNG icon files successfully.');
+
+  // Generate Windows .ico with uncompressed DIB images
+  const icoSizes = [16, 24, 32, 48, 64, 128];
+  const icoPngs = icoSizes.map(sz => getIcon(sz, sz));
+  const icoBuffer = createUncompressedIco(icoPngs);
+
+  fs.writeFileSync(path.join(iconsDir, 'icon.ico'), icoBuffer);
+  console.log(`Generated uncompressed Windows icon.ico (${icoBuffer.length} bytes) with sizes: ${icoSizes.join(', ')}`);
 }
 
 generate();

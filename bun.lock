@@ -27,6 +27,7 @@
         "@types/pngjs": "^6.0.5",
         "autoprefixer": "^10.4.21",
         "esbuild": "^0.25.0",
+        "jpeg-js": "^0.4.4",
         "pngjs": "^7.0.0",
         "tailwindcss": "^4.1.14",
         "tsx": "^4.21.0",
@@ -307,6 +308,8 @@
     "ipaddr.js": ["ipaddr.js@1.9.1", "", {}, ""],
 
     "jiti": ["jiti@2.7.0", "", { "bin": "lib/jiti-cli.mjs" }, ""],
+
+    "jpeg-js": ["jpeg-js@0.4.4", "", {}, "sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg=="],
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, ""],
 
