@@ -21,6 +21,7 @@ import { SurveillanceItem } from '../types';
 import { formatSns, getDaysRemaining } from '../utils/storage';
 import { setAlwaysOnTop as setNativeAlwaysOnTop, toggleCompactWidgetMode, isTauriEnvironment } from '../utils/tauriWindow';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { LogicalSize } from '@tauri-apps/api/dpi';
 
 interface FloatingDesktopWidgetProps {
   items: SurveillanceItem[];
@@ -41,7 +42,6 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTopState] = useState(true);
-  const [isCompactWindow, setIsCompactWindow] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'overdue' | 'dueSoon'>('dueSoon');
 
   useEffect(() => {
@@ -59,6 +59,22 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
     }
   }, [isOpen]);
 
+  // Adjust native window height when minimizing / expanding the widget
+  useEffect(() => {
+    if (isTauriEnvironment()) {
+      try {
+        const appWindow = getCurrentWebviewWindow();
+        if (isMinimized) {
+          appWindow.setSize(new LogicalSize(400, 48));
+        } else {
+          appWindow.setSize(new LogicalSize(400, 520));
+        }
+      } catch (e) {
+        console.warn('Failed to resize widget window:', e);
+      }
+    }
+  }, [isMinimized]);
+
   const handleToggleAlwaysOnTop = async () => {
     const next = !isAlwaysOnTop;
     setIsAlwaysOnTopState(next);
@@ -74,15 +90,7 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
     }
   };
 
-  const handleToggleCompactWindow = async () => {
-    const next = !isCompactWindow;
-    setIsCompactWindow(next);
-    await toggleCompactWidgetMode(next);
-  };
-
   const handleOpenFull = async () => {
-    setIsCompactWindow(false);
-    await toggleCompactWidgetMode(false);
     onOpenFullApp();
   };
 
@@ -143,22 +151,6 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
             }`}
           >
             {isAlwaysOnTop ? <Pin className="w-3.5 h-3.5 fill-amber-400 text-amber-300" /> : <PinOff className="w-3.5 h-3.5" />}
-          </button>
-
-          {/* Compact Native Window Toggle */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleCompactWindow();
-            }}
-            title={isCompactWindow ? 'Restaurar Janela Completa' : 'Redimensionar para Janela Flutuante Compacta'}
-            className={`p-1 rounded transition ${
-              isCompactWindow
-                ? 'bg-indigo-500/30 text-indigo-300'
-                : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
-            }`}
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
           </button>
 
           <button
