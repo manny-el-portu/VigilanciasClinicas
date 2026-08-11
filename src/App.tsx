@@ -31,7 +31,8 @@ import {
   showWidgetWindow,
   hideWidgetWindow,
   emitDataChanged,
-  listenWidgetAction,
+  listenOpenNewSurveillance,
+  listenWidgetVisibilityChanged,
 } from './utils/widgetWindow';
 
 export default function App() {
@@ -53,25 +54,25 @@ export default function App() {
 
   // Listen for actions coming from the separate widget window
   useEffect(() => {
-    let unlistenModal: (() => void) | null = null;
-    let unlistenFullApp: (() => void) | null = null;
+    let unlistenOpenNew: (() => void) | null = null;
+    let unlistenVis: (() => void) | null = null;
 
-    listenWidgetAction('open-new-modal', () => {
+    listenOpenNewSurveillance(() => {
       setEditingItem(null);
       setIsNewModalOpen(true);
     }).then((un) => {
-      if (un) unlistenModal = un;
+      if (un) unlistenOpenNew = un;
     });
 
-    listenWidgetAction('open-full-app', () => {
-      setActiveTab('all');
+    listenWidgetVisibilityChanged((visible) => {
+      setIsFloatingWidgetOpen(visible);
     }).then((un) => {
-      if (un) unlistenFullApp = un;
+      if (un) unlistenVis = un;
     });
 
     return () => {
-      if (unlistenModal) unlistenModal();
-      if (unlistenFullApp) unlistenFullApp();
+      if (unlistenOpenNew) unlistenOpenNew();
+      if (unlistenVis) unlistenVis();
     };
   }, []);
 
@@ -556,21 +557,6 @@ export default function App() {
           )}
         </main>
       </div>
-
-      {/* Fallback Floating Desktop Widget for Web Browser preview */}
-      {!isTauriEnv() && (
-        <FloatingDesktopWidget
-          items={surveillanceItems}
-          isOpen={isFloatingWidgetOpen}
-          onClose={() => setIsFloatingWidgetOpen(false)}
-          onOpenFullApp={() => setActiveTab('all')}
-          onCopyClinicalNoteSingle={handleCopySingleClinicalNote}
-          onOpenNewModal={() => {
-            setEditingItem(null);
-            setIsNewModalOpen(true);
-          }}
-        />
-      )}
 
       {/* Modals */}
       <SurveillanceModal

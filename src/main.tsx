@@ -10,14 +10,14 @@ function MainRouter() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+      import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) => {
         try {
-          const win = getCurrentWindow();
+          const win = getCurrentWebviewWindow();
           if (win && win.label) {
             setWindowLabel(win.label);
           }
         } catch (e) {
-          console.warn('Error checking getCurrentWindow label:', e);
+          console.warn('Erro ao verificar o label da WebviewWindow:', e);
         }
       });
     }
@@ -35,4 +35,3 @@ createRoot(document.getElementById('root')!).render(
     <MainRouter />
   </StrictMode>,
 );
-
