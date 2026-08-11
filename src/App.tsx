@@ -26,7 +26,13 @@ import {
   calculateTargetDate,
   resolveItemStatus,
 } from './utils/storage';
-import { setAlwaysOnTop } from './utils/tauriWindow';
+import {
+  isTauriEnv,
+  showWidgetWindow,
+  hideWidgetWindow,
+  emitDataChanged,
+  listenWidgetAction,
+} from './utils/widgetWindow';
 
 export default function App() {
   const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
@@ -45,6 +51,50 @@ export default function App() {
   const [isFloatingWidgetOpen, setIsFloatingWidgetOpen] = useState<boolean>(true);
   const [isSystemTrayPopoverOpen, setIsSystemTrayPopoverOpen] = useState<boolean>(false);
 
+  // Listen for actions coming from the separate widget window
+  useEffect(() => {
+    let unlistenModal: (() => void) | null = null;
+    let unlistenFullApp: (() => void) | null = null;
+
+    listenWidgetAction('open-new-modal', () => {
+      setEditingItem(null);
+      setIsNewModalOpen(true);
+    }).then((un) => {
+      if (un) unlistenModal = un;
+    });
+
+    listenWidgetAction('open-full-app', () => {
+      setActiveTab('all');
+    }).then((un) => {
+      if (un) unlistenFullApp = un;
+    });
+
+    return () => {
+      if (unlistenModal) unlistenModal();
+      if (unlistenFullApp) unlistenFullApp();
+    };
+  }, []);
+
+  // Sync to widget window when data is modified
+  useEffect(() => {
+    if (isDiskLoaded) {
+      emitDataChanged();
+    }
+  }, [patients, surveillanceItems, settings, customPresets, isDiskLoaded]);
+
+  // Toggle widget window in Tauri or inline state in Web
+  const handleToggleFloatingWidget = async () => {
+    const nextState = !isFloatingWidgetOpen;
+    setIsFloatingWidgetOpen(nextState);
+    if (isTauriEnv()) {
+      if (nextState) {
+        await showWidgetWindow();
+      } else {
+        await hideWidgetWindow();
+      }
+    }
+  };
+
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState<boolean>(false);
   const [editingItem, setEditingItem] = useState<SurveillanceItem | null>(null);
@@ -55,9 +105,6 @@ export default function App() {
 
   // Initial load from server-side disk database (data/vigilancias_db.json)
   useEffect(() => {
-    // Keep window on top over SClínico and other programs by default
-    setAlwaysOnTop(true);
-
     async function initFromDisk() {
       const diskData = await fetchDatabaseFromDisk();
       if (diskData) {
@@ -418,7 +465,7 @@ export default function App() {
         onToggleAutostart={() =>
           setSettings((prev) => ({ ...prev, autostartWindows: !prev.autostartWindows }))
         }
-        onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
+        onToggleFloatingWidget={handleToggleFloatingWidget}
         onToggleSystemTrayPopover={() => setIsSystemTrayPopoverOpen((prev) => !prev)}
         isWidgetOpen={isFloatingWidgetOpen}
         onSelectTab={(tab) => setActiveTab(tab)}
@@ -433,7 +480,7 @@ export default function App() {
         isOpen={isSystemTrayPopoverOpen}
         onClose={() => setIsSystemTrayPopoverOpen(false)}
         onOpenFullApp={() => setActiveTab('all')}
-        onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
+        onToggleFloatingWidget={handleToggleFloatingWidget}
         isWidgetOpen={isFloatingWidgetOpen}
       />
 
@@ -510,18 +557,20 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Desktop Widget (Strictly displays SNS, Exame, Data Alvo) */}
-      <FloatingDesktopWidget
-        items={surveillanceItems}
-        isOpen={isFloatingWidgetOpen}
-        onClose={() => setIsFloatingWidgetOpen(false)}
-        onOpenFullApp={() => setActiveTab('all')}
-        onCopyClinicalNoteSingle={handleCopySingleClinicalNote}
-        onOpenNewModal={() => {
-          setEditingItem(null);
-          setIsNewModalOpen(true);
-        }}
-      />
+      {/* Fallback Floating Desktop Widget for Web Browser preview */}
+      {!isTauriEnv() && (
+        <FloatingDesktopWidget
+          items={surveillanceItems}
+          isOpen={isFloatingWidgetOpen}
+          onClose={() => setIsFloatingWidgetOpen(false)}
+          onOpenFullApp={() => setActiveTab('all')}
+          onCopyClinicalNoteSingle={handleCopySingleClinicalNote}
+          onOpenNewModal={() => {
+            setEditingItem(null);
+            setIsNewModalOpen(true);
+          }}
+        />
+      )}
 
       {/* Modals */}
       <SurveillanceModal

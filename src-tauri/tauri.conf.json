@@ -18,8 +18,20 @@
         "height": 800,
         "resizable": true,
         "center": true,
-        "visible": true,
-        "alwaysOnTop": true
+        "visible": true
+      },
+      {
+        "label": "widget",
+        "title": "Vigilâncias - Widget",
+        "width": 380,
+        "height": 520,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
       }
     ],
     "security": {
