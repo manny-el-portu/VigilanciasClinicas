@@ -1,37 +1,27 @@
-import { StrictMode, useState, useEffect } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import WidgetApp from './WidgetApp.tsx';
-import { getCurrentWindowLabel } from './utils/widgetWindow.ts';
 import './index.css';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { isTauriEnvironment } from './utils/tauriWindow.ts';
 
-function MainRouter() {
-  const [windowLabel, setWindowLabel] = useState<string>(() => getCurrentWindowLabel());
+let isWidgetWindow = false;
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-      import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) => {
-        try {
-          const win = getCurrentWebviewWindow();
-          if (win && win.label) {
-            setWindowLabel(win.label);
-          }
-        } catch (e) {
-          console.warn('Erro ao verificar o label da WebviewWindow:', e);
-        }
-      });
+if (isTauriEnvironment()) {
+  try {
+    const currentWindow = getCurrentWebviewWindow();
+    if (currentWindow && currentWindow.label === 'widget') {
+      isWidgetWindow = true;
     }
-  }, []);
-
-  if (windowLabel === 'widget' || window.location.hash.includes('widget')) {
-    return <WidgetApp />;
+  } catch (err) {
+    console.warn('Could not determine window label:', err);
   }
-
-  return <App />;
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MainRouter />
-  </StrictMode>,
+    {isWidgetWindow ? <WidgetApp /> : <App />}
+  </StrictMode>
 );
+

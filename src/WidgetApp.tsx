@@ -1,74 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { FloatingDesktopWidget } from './components/FloatingDesktopWidget';
-import { Patient, SurveillanceItem } from './types';
+import { SurveillanceItem, Patient, AppSettings } from './types';
 import {
   fetchDatabaseFromDisk,
-  loadSurveillanceItems,
-  resolveItemStatus,
   generateClinicalNoteText,
+  loadSurveillanceItems,
+  loadPatients,
+  loadAppSettings,
 } from './utils/storage';
 import {
-  isTauriEnv,
   hideWidgetWindow,
   focusMainWindow,
-  listenDataChanged,
-  emitOpenNewSurveillance,
+  EVENT_DATA_UPDATED,
+  EVENT_OPEN_NEW_VIGILANCIA,
+  EVENT_WIDGET_VISIBILITY_CHANGED,
 } from './utils/widgetWindow';
+import { emit, listen } from '@tauri-apps/api/event';
+import { isTauriEnvironment } from './utils/tauriWindow';
+
+interface DataUpdatedPayload {
+  patients?: Patient[];
+  surveillanceItems?: SurveillanceItem[];
+  settings?: AppSettings;
+}
 
 export default function WidgetApp() {
-  const [items, setItems] = useState<SurveillanceItem[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const loadData = async () => {
-    try {
-      if (isTauriEnv()) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const result = await invoke<any>('load_db');
-        if (result && result.data) {
-          const loadedPatients = result.data.patients || [];
-          const loadedItems = result.data.surveillanceItems || [];
-          const leadNotice = result.data.settings?.leadDaysNotice || 30;
-          setPatients(loadedPatients);
-          setItems(
-            loadedItems.map((item: SurveillanceItem) => ({
-              ...item,
-              status: resolveItemStatus(item, leadNotice),
-            }))
-          );
-          return;
-        }
-      }
-      const diskData = await fetchDatabaseFromDisk();
-      if (diskData && diskData.surveillanceItems) {
-        setPatients(diskData.patients || []);
-        const leadNotice = diskData.settings?.leadDaysNotice || 30;
-        setItems(
-          diskData.surveillanceItems.map((item) => ({
-            ...item,
-            status: resolveItemStatus(item, leadNotice),
-          }))
-        );
-      } else {
-        const localItems = loadSurveillanceItems();
-        setItems(localItems);
-      }
-    } catch (err) {
-      console.warn('Erro ao carregar dados no WidgetApp:', err);
-      const localItems = loadSurveillanceItems();
-      setItems(localItems);
-    }
-  };
+  const [items, setItems] = useState<SurveillanceItem[]>(() =>
+    loadSurveillanceItems()
+  );
+  const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
+  const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
 
   useEffect(() => {
-    loadData();
+    // Initial fetch from disk database via backend endpoint invoke / fetch
+    async function init() {
+      const db = await fetchDatabaseFromDisk();
+      if (db) {
+        if (db.surveillanceItems) setItems(db.surveillanceItems);
+        if (db.patients) setPatients(db.patients);
+        if (db.settings) setSettings(db.settings);
+      }
+    }
+    init();
 
-    let unlisten: (() => void) | null = null;
-    listenDataChanged(() => {
-      loadData();
-    }).then((unlistener) => {
-      if (unlistener) unlisten = unlistener;
-    });
+    // Listen for data updates emitted from the main window
+    let unlisten: (() => void) | undefined;
+    if (isTauriEnvironment()) {
+      listen<DataUpdatedPayload>(EVENT_DATA_UPDATED, (event) => {
+        if (event.payload) {
+          if (event.payload.surveillanceItems) {
+            setItems(event.payload.surveillanceItems);
+          }
+          if (event.payload.patients) {
+            setPatients(event.payload.patients);
+          }
+          if (event.payload.settings) {
+            setSettings(event.payload.settings);
+          }
+        }
+      }).then((un) => {
+        unlisten = un;
+      }).catch((err) => {
+        console.warn('Failed to listen to EVENT_DATA_UPDATED:', err);
+      });
+    }
 
     return () => {
       if (unlisten) unlisten();
@@ -77,6 +72,9 @@ export default function WidgetApp() {
 
   const handleClose = async () => {
     await hideWidgetWindow();
+    if (isTauriEnvironment()) {
+      await emit(EVENT_WIDGET_VISIBILITY_CHANGED, { visible: false });
+    }
   };
 
   const handleOpenFullApp = async () => {
@@ -85,38 +83,35 @@ export default function WidgetApp() {
 
   const handleOpenNewModal = async () => {
     await focusMainWindow();
-    await emitOpenNewSurveillance();
+    if (isTauriEnvironment()) {
+      await emit(EVENT_OPEN_NEW_VIGILANCIA, {});
+    }
   };
 
-  const handleCopySingle = (item: SurveillanceItem) => {
+  const handleCopySingleClinicalNote = (item: SurveillanceItem) => {
     const patient = patients.find((p) => p.sns === item.patientSns) || {
+      id: item.patientId || `pat-${item.patientSns}`,
       sns: item.patientSns,
       sex: item.patientSex,
       age: item.patientAge,
       name: item.patientName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    const text = generateClinicalNoteText(patient as Patient, [item]);
-    navigator.clipboard.writeText(text);
-    setToastMessage('Nota clínica copiada!');
-    setTimeout(() => setToastMessage(null), 2500);
+    const note = generateClinicalNoteText(patient, [item]);
+    navigator.clipboard.writeText(note);
   };
 
   return (
-    <div className="w-screen h-screen bg-transparent p-2 flex flex-col antialiased">
+    <div className="w-screen h-screen bg-transparent select-none overflow-hidden p-1">
       <FloatingDesktopWidget
         items={items}
         isOpen={true}
         onClose={handleClose}
         onOpenFullApp={handleOpenFullApp}
-        onCopyClinicalNoteSingle={handleCopySingle}
+        onCopyClinicalNoteSingle={handleCopySingleClinicalNote}
         onOpenNewModal={handleOpenNewModal}
       />
-
-      {toastMessage && (
-        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-zinc-900 text-white px-3 py-1.5 rounded-lg shadow-lg text-xs font-medium flex items-center space-x-1.5 animate-in fade-in zoom-in-95 duration-150">
-          <span>{toastMessage}</span>
-        </div>
-      )}
     </div>
   );
 }

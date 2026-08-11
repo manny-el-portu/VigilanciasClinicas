@@ -1,7 +1,8 @@
-import React from 'react';
-import { Plus, Bell, Shield, Laptop, Copy, Check, Search, Calendar, Sliders, Layout } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Bell, Shield, Laptop, Copy, Check, Search, Calendar, Sliders, Layout, Pin, PinOff, Minimize2 } from 'lucide-react';
 import { AppSettings, SurveillanceItem } from '../types';
 import appLogo from '../assets/images/app_icon_1786371578784.jpg';
+import { setAlwaysOnTop as setNativeAlwaysOnTop, hideWindowToTray, isTauriEnvironment } from '../utils/tauriWindow';
 
 interface HeaderProps {
   settings: AppSettings;
@@ -34,6 +35,17 @@ export const Header: React.FC<HeaderProps> = ({
   setSearchQuery,
   copiedNotice,
 }) => {
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState<boolean>(true);
+
+  const handleToggleAlwaysOnTop = async () => {
+    const next = !isAlwaysOnTop;
+    setIsAlwaysOnTop(next);
+    await setNativeAlwaysOnTop(next);
+  };
+
+  const handleHideToTray = async () => {
+    await hideWindowToTray();
+  };
   const overdueCount = surveillanceItems.filter(i => i.status === 'atrasado').length;
   const pendingCount = surveillanceItems.filter(i => i.status === 'pendente' || i.status === 'atrasado').length;
 
@@ -123,6 +135,20 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
+          {/* Always-on-Top Toggle (Fixar por Cima do SClínico) */}
+          <button
+            onClick={handleToggleAlwaysOnTop}
+            title={isAlwaysOnTop ? 'Janela fixa por cima do SClínico (Clique para desativar)' : 'Fixar janela por cima do SClínico e outros programas'}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition active:scale-95 ${
+              isAlwaysOnTop
+                ? 'bg-amber-500 text-white border-amber-600 shadow-2xs font-bold'
+                : 'bg-zinc-100 hover:bg-zinc-200/70 text-zinc-700 border-zinc-300/60'
+            }`}
+          >
+            <Pin className={`w-3.5 h-3.5 ${isAlwaysOnTop ? 'fill-white' : 'text-zinc-600'}`} />
+            <span className="hidden lg:inline">{isAlwaysOnTop ? 'No Topo' : 'Fixar'}</span>
+          </button>
+
           {/* Widget Toggle Button in Header */}
           <button
             onClick={onToggleFloatingWidget}
@@ -135,6 +161,16 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Sliders className="w-3.5 h-3.5 text-amber-600" />
             <span>Widget Secretária</span>
+          </button>
+
+          {/* Minimize to Tray */}
+          <button
+            onClick={handleHideToTray}
+            title="Ocultar aplicação para a Bandeja do Sistema (System Tray)"
+            className="flex items-center space-x-1 px-2.5 py-1.5 text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200/70 border border-zinc-300/60 rounded-lg transition active:scale-95"
+          >
+            <Minimize2 className="w-3.5 h-3.5 text-zinc-600" />
+            <span className="hidden xl:inline">Ocultar p/ Tray</span>
           </button>
 
           {/* Clinical Note Export Button */}

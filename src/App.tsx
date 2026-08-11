@@ -8,7 +8,6 @@ import { GuidelinesView } from './components/GuidelinesView';
 import { WindowsSettingsView } from './components/WindowsSettingsView';
 import { SurveillanceModal } from './components/SurveillanceModal';
 import { ClinicalNoteExportModal } from './components/ClinicalNoteExportModal';
-import { FloatingDesktopWidget } from './components/FloatingDesktopWidget';
 import { SystemTrayPopover } from './components/SystemTrayPopover';
 import { Patient, SurveillanceItem, AppSettings, MedicalPreset } from './types';
 import {
@@ -26,14 +25,15 @@ import {
   calculateTargetDate,
   resolveItemStatus,
 } from './utils/storage';
+import { setAlwaysOnTop, isTauriEnvironment } from './utils/tauriWindow';
 import {
-  isTauriEnv,
-  showWidgetWindow,
+  openOrCreateWidgetWindow,
   hideWidgetWindow,
-  emitDataChanged,
-  listenOpenNewSurveillance,
-  listenWidgetVisibilityChanged,
+  EVENT_DATA_UPDATED,
+  EVENT_OPEN_NEW_VIGILANCIA,
+  EVENT_WIDGET_VISIBILITY_CHANGED,
 } from './utils/widgetWindow';
+import { emit, listen } from '@tauri-apps/api/event';
 
 export default function App() {
   const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
@@ -52,50 +52,6 @@ export default function App() {
   const [isFloatingWidgetOpen, setIsFloatingWidgetOpen] = useState<boolean>(true);
   const [isSystemTrayPopoverOpen, setIsSystemTrayPopoverOpen] = useState<boolean>(false);
 
-  // Listen for actions coming from the separate widget window
-  useEffect(() => {
-    let unlistenOpenNew: (() => void) | null = null;
-    let unlistenVis: (() => void) | null = null;
-
-    listenOpenNewSurveillance(() => {
-      setEditingItem(null);
-      setIsNewModalOpen(true);
-    }).then((un) => {
-      if (un) unlistenOpenNew = un;
-    });
-
-    listenWidgetVisibilityChanged((visible) => {
-      setIsFloatingWidgetOpen(visible);
-    }).then((un) => {
-      if (un) unlistenVis = un;
-    });
-
-    return () => {
-      if (unlistenOpenNew) unlistenOpenNew();
-      if (unlistenVis) unlistenVis();
-    };
-  }, []);
-
-  // Sync to widget window when data is modified
-  useEffect(() => {
-    if (isDiskLoaded) {
-      emitDataChanged();
-    }
-  }, [patients, surveillanceItems, settings, customPresets, isDiskLoaded]);
-
-  // Toggle widget window in Tauri or inline state in Web
-  const handleToggleFloatingWidget = async () => {
-    const nextState = !isFloatingWidgetOpen;
-    setIsFloatingWidgetOpen(nextState);
-    if (isTauriEnv()) {
-      if (nextState) {
-        await showWidgetWindow();
-      } else {
-        await hideWidgetWindow();
-      }
-    }
-  };
-
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState<boolean>(false);
   const [editingItem, setEditingItem] = useState<SurveillanceItem | null>(null);
@@ -106,6 +62,9 @@ export default function App() {
 
   // Initial load from server-side disk database (data/vigilancias_db.json)
   useEffect(() => {
+    // Keep window on top over SClínico and other programs by default
+    setAlwaysOnTop(true);
+
     async function initFromDisk() {
       const diskData = await fetchDatabaseFromDisk();
       if (diskData) {
@@ -159,6 +118,56 @@ export default function App() {
       saveDatabaseToDisk(patients, surveillanceItems, settings, customPresets);
     }
   }, [customPresets, isDiskLoaded]);
+
+  // Emit data update events to Widget Window
+  useEffect(() => {
+    if (isTauriEnvironment() && isDiskLoaded) {
+      emit(EVENT_DATA_UPDATED, {
+        patients,
+        surveillanceItems,
+        settings,
+      }).catch((err) => console.warn('Failed to emit data updated event:', err));
+    }
+  }, [patients, surveillanceItems, settings, isDiskLoaded]);
+
+  // Manage Widget Window creation/hiding based on state
+  useEffect(() => {
+    if (isDiskLoaded) {
+      if (isFloatingWidgetOpen) {
+        openOrCreateWidgetWindow();
+      } else {
+        hideWidgetWindow();
+      }
+    }
+  }, [isFloatingWidgetOpen, isDiskLoaded]);
+
+  // Listen to events emitted from the Widget Window
+  useEffect(() => {
+    let unlistenVisibility: (() => void) | undefined;
+    let unlistenNewModal: (() => void) | undefined;
+
+    if (isTauriEnvironment()) {
+      listen<{ visible: boolean }>(EVENT_WIDGET_VISIBILITY_CHANGED, (event) => {
+        if (event.payload && typeof event.payload.visible === 'boolean') {
+          setIsFloatingWidgetOpen(event.payload.visible);
+        }
+      }).then((un) => {
+        unlistenVisibility = un;
+      });
+
+      listen(EVENT_OPEN_NEW_VIGILANCIA, () => {
+        setEditingItem(null);
+        setIsNewModalOpen(true);
+      }).then((un) => {
+        unlistenNewModal = un;
+      });
+    }
+
+    return () => {
+      if (unlistenVisibility) unlistenVisibility();
+      if (unlistenNewModal) unlistenNewModal();
+    };
+  }, []);
 
   const handleSaveCustomPreset = (preset: MedicalPreset) => {
     setCustomPresets((prev) => {
@@ -466,7 +475,7 @@ export default function App() {
         onToggleAutostart={() =>
           setSettings((prev) => ({ ...prev, autostartWindows: !prev.autostartWindows }))
         }
-        onToggleFloatingWidget={handleToggleFloatingWidget}
+        onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
         onToggleSystemTrayPopover={() => setIsSystemTrayPopoverOpen((prev) => !prev)}
         isWidgetOpen={isFloatingWidgetOpen}
         onSelectTab={(tab) => setActiveTab(tab)}
@@ -481,7 +490,7 @@ export default function App() {
         isOpen={isSystemTrayPopoverOpen}
         onClose={() => setIsSystemTrayPopoverOpen(false)}
         onOpenFullApp={() => setActiveTab('all')}
-        onToggleFloatingWidget={handleToggleFloatingWidget}
+        onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
         isWidgetOpen={isFloatingWidgetOpen}
       />
 

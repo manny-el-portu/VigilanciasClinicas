@@ -8,36 +8,7 @@ export async function consultGuidelineAi(
   patientSex?: string,
   customPresets: MedicalPreset[] = []
 ): Promise<GuidelineResponse> {
-  // 1. Try Tauri native command invoke('consult_gemini_guideline') if running as native app
-  if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const data = await invoke<any>('consult_gemini_guideline', {
-        diagnosis,
-        examType,
-        patientAge,
-        patientSex,
-      });
-
-      if (
-        data &&
-        typeof (data.suggestedIntervalYears ?? data.suggested_interval_years) === 'number' &&
-        (data.recommendationText || data.recommendation_text)
-      ) {
-        return {
-          suggestedIntervalYears: data.suggestedIntervalYears ?? data.suggested_interval_years,
-          suggestedIntervalMonths: data.suggestedIntervalMonths ?? data.suggested_interval_months,
-          recommendationText: data.recommendationText || data.recommendation_text,
-          guidelineSource: data.guidelineSource || data.guideline_source || 'Diretrizes Médicas',
-          urgency: data.urgency || 'normal',
-        };
-      }
-    } catch (tauriErr) {
-      console.warn('Tauri invoke consult_gemini_guideline skipped/failed, trying Express API or local engine:', tauriErr);
-    }
-  }
-
-  // 2. Try Express backend API (/api/gemini/guideline) if running with active server
+  // 1. Try Express backend API (/api/gemini/guideline) if running with active server
   try {
     const res = await fetch('/api/gemini/guideline', {
       method: 'POST',
