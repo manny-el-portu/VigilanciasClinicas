@@ -8,7 +8,6 @@ import { GuidelinesView } from './components/GuidelinesView';
 import { WindowsSettingsView } from './components/WindowsSettingsView';
 import { SurveillanceModal } from './components/SurveillanceModal';
 import { ClinicalNoteExportModal } from './components/ClinicalNoteExportModal';
-import { SystemTrayPopover } from './components/SystemTrayPopover';
 import { Patient, SurveillanceItem, AppSettings, MedicalPreset } from './types';
 import {
   loadPatients,
@@ -48,9 +47,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Floating Desktop Widget & System Tray states
+  // Floating Desktop Widget state
   const [isFloatingWidgetOpen, setIsFloatingWidgetOpen] = useState<boolean>(true);
-  const [isSystemTrayPopoverOpen, setIsSystemTrayPopoverOpen] = useState<boolean>(false);
 
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState<boolean>(false);
@@ -62,9 +60,6 @@ export default function App() {
 
   // Initial load from server-side disk database (data/vigilancias_db.json)
   useEffect(() => {
-    // Keep window on top over SClínico and other programs by default
-    setAlwaysOnTop(true);
-
     async function initFromDisk() {
       const diskData = await fetchDatabaseFromDisk();
       if (diskData) {
@@ -476,22 +471,11 @@ export default function App() {
           setSettings((prev) => ({ ...prev, autostartWindows: !prev.autostartWindows }))
         }
         onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
-        onToggleSystemTrayPopover={() => setIsSystemTrayPopoverOpen((prev) => !prev)}
         isWidgetOpen={isFloatingWidgetOpen}
         onSelectTab={(tab) => setActiveTab(tab)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         copiedNotice={copiedNotice}
-      />
-
-      {/* System Tray Popover Window */}
-      <SystemTrayPopover
-        items={surveillanceItems}
-        isOpen={isSystemTrayPopoverOpen}
-        onClose={() => setIsSystemTrayPopoverOpen(false)}
-        onOpenFullApp={() => setActiveTab('all')}
-        onToggleFloatingWidget={() => setIsFloatingWidgetOpen((prev) => !prev)}
-        isWidgetOpen={isFloatingWidgetOpen}
       />
 
       {/* Main Content Layout */}

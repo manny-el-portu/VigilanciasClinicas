@@ -12,7 +12,6 @@ interface HeaderProps {
   onToggleTraySim: () => void;
   onToggleAutostart: () => void;
   onToggleFloatingWidget: () => void;
-  onToggleSystemTrayPopover: () => void;
   isWidgetOpen: boolean;
   onSelectTab: (tab: string) => void;
   searchQuery: string;
@@ -28,14 +27,13 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTraySim,
   onToggleAutostart,
   onToggleFloatingWidget,
-  onToggleSystemTrayPopover,
   isWidgetOpen,
   onSelectTab,
   searchQuery,
   setSearchQuery,
   copiedNotice,
 }) => {
-  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState<boolean>(true);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState<boolean>(false);
 
   const handleToggleAlwaysOnTop = async () => {
     const next = !isAlwaysOnTop;
@@ -58,15 +56,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
             Armazenamento Disco PC: data/vigilancias_db.json
           </span>
-          <span className="text-zinc-500">|</span>
-          <button
-            onClick={onToggleSystemTrayPopover}
-            title="Abrir Painel da Bandeja do Sistema (System Tray)"
-            className="hover:text-white text-sky-300 font-semibold transition flex items-center space-x-1 focus:outline-none"
-          >
-            <Laptop className="w-3 h-3 text-sky-400 mr-1" />
-            <span>Painel Tray (Windows)</span>
-          </button>
         </div>
 
         <div className="flex items-center space-x-4">

@@ -1,8 +1,23 @@
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     Manager, WindowEvent,
 };
+
+fn toggle_main_window(app_handle: &tauri::AppHandle) {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let is_visible = window.is_visible().unwrap_or(false);
+        let is_minimized = window.is_minimized().unwrap_or(false);
+
+        if is_visible && !is_minimized {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,15 +40,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .on_menu_event(|app_handle, event| {
                     match event.id.as_ref() {
                         "toggle" => {
-                            if let Some(window) = app_handle.get_webview_window("main") {
-                                if window.is_visible().unwrap_or(false) {
-                                    let _ = window.hide();
-                                } else {
-                                    let _ = window.show();
-                                    let _ = window.unminimize();
-                                    let _ = window.set_focus();
-                                }
-                            }
+                            toggle_main_window(app_handle);
                         }
                         "always_top" => {
                             if let Some(window) = app_handle.get_webview_window("main") {
@@ -48,17 +55,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                let _ = window.show();
-                                let _ = window.unminimize();
-                                let _ = window.set_focus();
-                            }
-                        }
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event {
+                        toggle_main_window(tray.app_handle());
                     }
                 });
 
@@ -80,3 +82,4 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .run(tauri::generate_context!())?;
     Ok(())
 }
+
