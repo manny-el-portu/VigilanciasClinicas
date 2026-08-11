@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -14,10 +14,12 @@ import {
   Sparkles,
   Plus,
   Pin,
-  PinOff
+  PinOff,
+  Minimize
 } from 'lucide-react';
 import { SurveillanceItem } from '../types';
 import { formatSns, getDaysRemaining } from '../utils/storage';
+import { setAlwaysOnTop as setNativeAlwaysOnTop, toggleCompactWidgetMode, hideWindowToTray } from '../utils/tauriWindow';
 
 interface FloatingDesktopWidgetProps {
   items: SurveillanceItem[];
@@ -37,8 +39,33 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
   onOpenNewModal,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
+  const [isAlwaysOnTop, setIsAlwaysOnTopState] = useState(true);
+  const [isCompactWindow, setIsCompactWindow] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'overdue' | 'dueSoon'>('dueSoon');
+
+  useEffect(() => {
+    if (isOpen) {
+      setNativeAlwaysOnTop(isAlwaysOnTop);
+    }
+  }, [isOpen]);
+
+  const handleToggleAlwaysOnTop = async () => {
+    const next = !isAlwaysOnTop;
+    setIsAlwaysOnTopState(next);
+    await setNativeAlwaysOnTop(next);
+  };
+
+  const handleToggleCompactWindow = async () => {
+    const next = !isCompactWindow;
+    setIsCompactWindow(next);
+    await toggleCompactWidgetMode(next);
+  };
+
+  const handleOpenFull = async () => {
+    setIsCompactWindow(false);
+    await toggleCompactWidgetMode(false);
+    onOpenFullApp();
+  };
 
   if (!isOpen) return null;
 
@@ -82,11 +109,11 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
         <div className="flex items-center space-x-1">
           {/* Always-on-Top Toggle */}
           <button
-            onClick={() => setIsAlwaysOnTop(!isAlwaysOnTop)}
+            onClick={handleToggleAlwaysOnTop}
             title={
               isAlwaysOnTop
-                ? 'Sempre no topo ativado (janela flutuante prioritária)'
-                : 'Fixar sempre no topo'
+                ? 'Sempre no topo ativado (janela sobre o SClínico e outros programas)'
+                : 'Fixar sempre no topo do ambiente de trabalho'
             }
             className={`p-1 rounded transition ${
               isAlwaysOnTop
@@ -97,9 +124,22 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
             {isAlwaysOnTop ? <Pin className="w-3.5 h-3.5 fill-amber-400 text-amber-300" /> : <PinOff className="w-3.5 h-3.5" />}
           </button>
 
+          {/* Compact Native Window Toggle */}
+          <button
+            onClick={handleToggleCompactWindow}
+            title={isCompactWindow ? 'Restaurar Janela Completa' : 'Redimensionar para Janela Flutuante Compacta'}
+            className={`p-1 rounded transition ${
+              isCompactWindow
+                ? 'bg-indigo-500/30 text-indigo-300'
+                : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            title={isMinimized ? 'Expandir Widget' : 'Minimizar Widget'}
+            title={isMinimized ? 'Expandir Widget' : 'Minimizar Widget no ecrã'}
             className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition"
           >
             {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
@@ -107,7 +147,7 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
 
           <button
             onClick={onClose}
-            title="Fechar Widget"
+            title="Ocultar Widget"
             className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition"
           >
             <X className="w-3.5 h-3.5" />
@@ -131,17 +171,18 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
             </button>
 
             {/* Always-on-top Indicator status */}
-            <div
-              className={`px-2 py-1 rounded-lg text-[10px] font-semibold flex items-center space-x-1 border ${
+            <button
+              onClick={handleToggleAlwaysOnTop}
+              className={`px-2 py-1 rounded-lg text-[10px] font-semibold flex items-center space-x-1 border cursor-pointer transition ${
                 isAlwaysOnTop
-                  ? 'bg-amber-50 text-amber-800 border-amber-200'
-                  : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  : 'bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200'
               }`}
-              title="Para manter a janela por cima das outras aplicações do Windows em modo nativo, use Win + Ctrl + T (PowerToys) ou abra a app no modo janela do Edge/Chrome."
+              title="Clique para alternar o modo Sempre no Topo (janela visível por cima do SClínico / Chrome)"
             >
               <Pin className="w-3 h-3 text-amber-600" />
               <span>{isAlwaysOnTop ? 'Sempre no Topo' : 'Modo Normal'}</span>
-            </div>
+            </button>
           </div>
 
           {/* Quick Filter Tabs */}
@@ -253,7 +294,7 @@ export const FloatingDesktopWidget: React.FC<FloatingDesktopWidgetProps> = ({
           <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs">
             <span className="text-[10px] text-zinc-400">Base de Dados Local</span>
             <button
-              onClick={onOpenFullApp}
+              onClick={handleOpenFull}
               className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-[11px] rounded-lg transition flex items-center space-x-1"
             >
               <span>Abrir App Completa</span>

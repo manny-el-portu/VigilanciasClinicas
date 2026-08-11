@@ -26,6 +26,7 @@ import {
   calculateTargetDate,
   resolveItemStatus,
 } from './utils/storage';
+import { setAlwaysOnTop } from './utils/tauriWindow';
 
 export default function App() {
   const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
@@ -54,6 +55,9 @@ export default function App() {
 
   // Initial load from server-side disk database (data/vigilancias_db.json)
   useEffect(() => {
+    // Keep window on top over SClínico and other programs by default
+    setAlwaysOnTop(true);
+
     async function initFromDisk() {
       const diskData = await fetchDatabaseFromDisk();
       if (diskData) {
