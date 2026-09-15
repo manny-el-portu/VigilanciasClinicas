@@ -1,8 +1,50 @@
-import { USFIndicator, IndicatorDimension } from '../types';
+import { USFIndicator, IndicatorDimension, ProfessionalScope } from '../types';
 
 export const getSdmBiUrl = (indicatorNumber: number): string => {
   return `https://sdm.min-saude.pt/bi.aspx?id=${indicatorNumber}&clusters=S`;
 };
+
+/**
+ * Resolves the professional scope for an indicator.
+ * Prefers the explicit ind.professionalScope, but falls back to rule-based inference
+ * to ensure resilience against stale cache or partially loaded objects.
+ */
+export function getIndicatorScope(ind: Partial<USFIndicator>): ProfessionalScope {
+  if (ind.professionalScope) {
+    return ind.professionalScope;
+  }
+  const name = (ind.name || '').toLowerCase();
+  const obj = (ind.clinicalObjective || '').toLowerCase();
+  const summary = (ind.calculationSummary || '').toLowerCase();
+  const text = `${name} ${obj} ${summary}`;
+
+  // 1. Nursing scope: explicit mentions of enfermagem, vacina, vacinação, or specific nursing indicators
+  if (
+    text.includes('enfermagem') ||
+    text.includes('vacina') ||
+    text.includes('vacinação') ||
+    text.includes('vacinas') ||
+    (ind.number !== undefined && [294, 316, 427, 295, 297, 445, 444, 317, 318].includes(ind.number))
+  ) {
+    return 'enfermagem';
+  }
+
+  // 2. Shared scope: diabetic foot (ind. 261), screenings, child health, family planning, BP control, avoidable events
+  if (
+    ind.number === 261 ||
+    (ind.number !== undefined && [8, 98, 10, 11, 37, 38, 39, 45, 46, 47, 50, 257, 379, 385, 428, 429, 430, 432].includes(ind.number)) ||
+    text.includes('rastreio') ||
+    text.includes('planeamento familiar') ||
+    text.includes('saúde infantil') ||
+    text.includes('cessação tabágica') ||
+    text.includes('álcool')
+  ) {
+    return 'partilhado';
+  }
+
+  // 3. Medical scope: medical consultations, pharmacology, MCDTs, control targets
+  return 'medico';
+}
 
 export interface DimensionSummary {
   dimension: IndicatorDimension;
@@ -59,7 +101,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Mulheres em idade fértil (15-49 anos) inscritas na USF',
     clinicalObjective: 'Garantir cobertura em saúde reprodutiva e planeamento familiar com pelo menos uma consulta nos últimos 3 anos.',
     calculationSummary: 'Proporção de utentes do sexo feminino (15-49 anos) com pelo menos 1 consulta de planeamento familiar nos últimos 36 meses.',
-    importGuidance: 'Lista de mulheres 15-49 anos sem registo de consulta de PF nos últimos 3 anos para convocatória antes do encerramento do ano civil.'
+    importGuidance: 'Lista de mulheres 15-49 anos sem registo de consulta de PF nos últimos 3 anos para convocatória antes do encerramento do ano civil.',
+    professionalScope: 'partilhado'
   },
   {
     number: 294,
@@ -72,7 +115,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes em situação de dependência ou com incapacidade de deslocação',
     clinicalObjective: 'Assegurar cuidados de enfermagem domiciliários estruturados aos doentes dependentes.',
     calculationSummary: 'Taxa de consultas/atos de enfermagem domiciliários ponderados pela população dependente da lista.',
-    importGuidance: 'Lista de utentes inscritos no programa de dependentes/acamados e periodicidade de visitas domiciliárias agendadas.'
+    importGuidance: 'Lista de utentes inscritos no programa de dependentes/acamados e periodicidade de visitas domiciliárias agendadas.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 330,
@@ -85,7 +129,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Totalidade de utentes inscritos na lista da USF',
     clinicalObjective: 'Equilíbrio e garantia de acesso de todos os utentes a cuidados médicos ao longo do ano.',
     calculationSummary: 'Rácio médio de consultas médicas presenciais ou não presenciais efetuadas por utente inscrito na lista.',
-    importGuidance: 'Identificação de utentes frequentes e utentes sem contacto nos últimos 2-3 anos.'
+    importGuidance: 'Identificação de utentes frequentes e utentes sem contacto nos últimos 2-3 anos.',
+    professionalScope: 'medico'
   },
   {
     number: 331,
@@ -98,7 +143,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Totalidade de utentes inscritos na lista da USF',
     clinicalObjective: 'Garantir intervenção e acompanhamento de enfermagem contínuo à população.',
     calculationSummary: 'Rácio médio de consultas e intervenções de enfermagem realizadas por utente inscrito.',
-    importGuidance: 'Monitorização da taxa de cobertura de consultas de enfermagem no plano de vigilâncias.'
+    importGuidance: 'Monitorização da taxa de cobertura de consultas de enfermagem no plano de vigilâncias.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 335,
@@ -111,7 +157,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Todos os pedidos de renovação de medicação crónica rececionados',
     clinicalObjective: 'Celeridade e segurança na resposta a pedidos de renovação de terapêutica crónica.',
     calculationSummary: 'Percentagem de prescrições de receita crónica emitidas no prazo máximo de 72 horas úteis após pedido.',
-    importGuidance: 'Relatório de pedidos pendentes no SClínico / módulo de receituário não presencial.'
+    importGuidance: 'Relatório de pedidos pendentes no SClínico / módulo de receituário não presencial.',
+    professionalScope: 'medico'
   },
 
   // ----------------------------------------------------
@@ -128,7 +175,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Grávidas com parto no ano civil com vigilância na USF',
     clinicalObjective: 'Início precoce da vigilância pré-natal antes das 12 semanas de gestação.',
     calculationSummary: 'Proporção de grávidas vigiadas com 1.ª consulta médica/enfermagem realizada até à 11ª semana + 6 dias.',
-    importGuidance: 'Grávidas com primeira consulta tardia ou recém-inscritas sem primeira consulta registada no 1.º trimestre.'
+    importGuidance: 'Grávidas com primeira consulta tardia ou recém-inscritas sem primeira consulta registada no 1.º trimestre.',
+    professionalScope: 'partilhado'
   },
   {
     number: 34,
@@ -141,7 +189,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico de obesidade (IMC ≥ 30 kg/m²)',
     clinicalObjective: 'Vigilância regular e intervenção no estilo de vida em utentes obesos.',
     calculationSummary: 'Percentagem de utentes com obesidade ativa que tiveram consulta médica ou de enfermagem nos últimos 12 meses.',
-    importGuidance: 'Export do BI-CSP de utentes com código ICPC-2 T82 sem consulta há mais de 1 ano para convocatória.'
+    importGuidance: 'Export do BI-CSP de utentes com código ICPC-2 T82 sem consulta há mais de 1 ano para convocatória.',
+    professionalScope: 'partilhado'
   },
   {
     number: 45,
@@ -154,7 +203,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Mulheres dos 25 aos 64 anos elegíveis sem histerectomia total',
     clinicalObjective: 'Deteção precoce de lesões pré-malignas e cancro do colo do útero por citologia/HPV nos últimos 3 a 5 anos.',
     calculationSummary: 'Percentagem de mulheres entre os 25 e 64 anos com rastreio de cancro do colo do útero atualizado.',
-    importGuidance: 'Ficheiro Excel de mulheres dos 25-64 anos em falta para colpocitologia/rastreio organizado.'
+    importGuidance: 'Ficheiro Excel de mulheres dos 25-64 anos em falta para colpocitologia/rastreio organizado.',
+    professionalScope: 'partilhado'
   },
   {
     number: 46,
@@ -167,7 +217,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes de ambos os sexos entre os 50 e os 74 anos',
     clinicalObjective: 'Rastreio sistemático por pesquisa de sangue oculto nas fezes (PSOF bienal) ou colonoscopia total nos últimos 5 anos.',
     calculationSummary: 'Proporção de utentes dos 50 aos 74 anos com teste PSOF nos últimos 2 anos ou colonoscopia válida.',
-    importGuidance: 'Excel de utentes 50-74 anos sem PSOF ou colonoscopia recente para envio de kit ou convocatória.'
+    importGuidance: 'Excel de utentes 50-74 anos sem PSOF ou colonoscopia recente para envio de kit ou convocatória.',
+    professionalScope: 'partilhado'
   },
   {
     number: 54,
@@ -180,7 +231,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com registo ativo de consumo abusivo ou dependência de álcool (P15/P16)',
     clinicalObjective: 'Acompanhamento clínico continuado e apoio à abstinência.',
     calculationSummary: 'Utentes com diagnóstico codificado com pelo menos uma consulta médica/enfermagem no ano.',
-    importGuidance: 'Lista de utentes com registo de etilismo crónico sem contacto clínico nos últimos 12 meses.'
+    importGuidance: 'Lista de utentes com registo de etilismo crónico sem contacto clínico nos últimos 12 meses.',
+    professionalScope: 'partilhado'
   },
   {
     number: 63,
@@ -193,7 +245,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Crianças que completam 7 anos no ano de avaliação',
     clinicalObjective: 'Cumprimento do PNV (vacina DTPa-VIP) e avaliação global de saúde infantil na transição escolar.',
     calculationSummary: 'Proporção de crianças aos 7 anos com PNV atualizado e consulta de saúde infantil aos 7 anos registada.',
-    importGuidance: 'Crianças da coorte de 7 anos em falta para reforço vacinal e exame de saúde escolar.'
+    importGuidance: 'Crianças da coorte de 7 anos em falta para reforço vacinal e exame de saúde escolar.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 95,
@@ -206,7 +259,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Jovens que completam 14 anos no ano de avaliação',
     clinicalObjective: 'Vacinação (Td / HPV) e consulta de vigilância da saúde do adolescente aos 14 anos.',
     calculationSummary: 'Percentagem de adolescentes de 14 anos com esquema vacinal completo e consulta realizada.',
-    importGuidance: 'Listagem de jovens da coorte de 14 anos pendentes de reforço vacinal ou vigilância juvenil.'
+    importGuidance: 'Listagem de jovens da coorte de 14 anos pendentes de reforço vacinal ou vigilância juvenil.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 98,
@@ -219,7 +273,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Totalidade de utentes inscritos elegíveis para vacina do tétano (Td)',
     clinicalObjective: 'Manter imunidade protetora contra o tétano em toda a população adulta e idosa.',
     calculationSummary: 'Utentes com vacina antitetânica válida de acordo com as normas da DGS (a cada 10 anos ou 20 anos segundo idade).',
-    importGuidance: 'Ficheiro de utentes com vacina do tétano caducada para vacinação nas vindas à unidade ou agendamento.'
+    importGuidance: 'Ficheiro de utentes com vacina do tétano caducada para vacinação nas vindas à unidade ou agendamento.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 269,
@@ -232,7 +287,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Crianças entre os 12 e os 24 meses de idade',
     clinicalObjective: 'Cumprimento das consultas do Programa Nacional de Saúde Infantil (15 e 18 meses).',
     calculationSummary: 'Rácio de consultas de saúde infantil programadas e realizadas durante o segundo ano de vida.',
-    importGuidance: 'Crianças de 1 a 2 anos com consultas dos 15m ou 18m em atraso.'
+    importGuidance: 'Crianças de 1 a 2 anos com consultas dos 15m ou 18m em atraso.',
+    professionalScope: 'partilhado'
   },
   {
     number: 295,
@@ -245,7 +301,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Puérperas e grávidas acompanhadas na USF',
     clinicalObjective: 'Apoio de enfermagem à amamentação, cuidados pós-parto e adaptação à parentalidade.',
     calculationSummary: 'Grávidas/puérperas com consultas de enfermagem de saúde materna registadas durante o ciclo gravídico-puerperal.',
-    importGuidance: 'Puérperas sem consulta de revisão pós-parto de enfermagem agendada até ao 42º dia.'
+    importGuidance: 'Puérperas sem consulta de revisão pós-parto de enfermagem agendada até ao 42º dia.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 302,
@@ -258,7 +315,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Bebés dos 0 aos 12 meses',
     clinicalObjective: 'Cumprimento escrupuloso das consultas dos 1, 2, 4, 6 e 9 meses de vida.',
     calculationSummary: 'Índice de assiduidade e realização das consultas-chave de saúde infantil no primeiro ano.',
-    importGuidance: 'Lactentes sem consulta de desenvolvimento ou vacinas do 1.º ano em falta.'
+    importGuidance: 'Lactentes sem consulta de desenvolvimento ou vacinas do 1.º ano em falta.',
+    professionalScope: 'partilhado'
   },
   {
     number: 308,
@@ -271,7 +329,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Grávidas acompanhadas na USF entre as 20 e as 22 semanas + 6 dias',
     clinicalObjective: 'Rastreio ecográfico de malformações anatómicas fetais no 2.º trimestre.',
     calculationSummary: 'Percentagem de grávidas vigiadas que realizaram e registaram ecografia morfológica no tempo certo.',
-    importGuidance: 'Grávidas entre as 18 e 22 semanas sem registo do resultado da ecografia morfológica.'
+    importGuidance: 'Grávidas entre as 18 e 22 semanas sem registo do resultado da ecografia morfológica.',
+    professionalScope: 'medico'
   },
   {
     number: 310,
@@ -284,7 +343,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Grávidas vigiadas no 1.º trimestre',
     clinicalObjective: 'Prescrição e avaliação atempada da bateria analítica obrigatória (hemograma, glicemia, tipagem, serologias).',
     calculationSummary: 'Taxa de cumprimento do protocolo de exames laboratoriais do 1.º trimestre.',
-    importGuidance: 'Grávidas no 1.º trimestre com MCDTs pendentes ou sem registo de resultados.'
+    importGuidance: 'Grávidas no 1.º trimestre com MCDTs pendentes ou sem registo de resultados.',
+    professionalScope: 'medico'
   },
   {
     number: 311,
@@ -297,7 +357,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Grávidas vigiadas entre as 24 e 28 semanas',
     clinicalObjective: 'Rastreio analítico do 2.º trimestre, incluindo PTGO para diagnóstico de diabetes gestacional.',
     calculationSummary: 'Taxa de cumprimento da bateria analítica do 2.º trimestre.',
-    importGuidance: 'Grávidas que atingiram as 24 semanas sem agendamento/registo da PTGO e hemograma.'
+    importGuidance: 'Grávidas que atingiram as 24 semanas sem agendamento/registo da PTGO e hemograma.',
+    professionalScope: 'medico'
   },
   {
     number: 312,
@@ -310,7 +371,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Grávidas entre as 32 e as 37 semanas',
     clinicalObjective: 'Pesquisa de estreptococo grupo B (SGB), hemograma e serologias finais pré-parto.',
     calculationSummary: 'Taxa de cumprimento dos exames laboratoriais e zaragatoa retovaginal no 3.º trimestre.',
-    importGuidance: 'Grávidas no 3.º trimestre sem rastreio de SGB ou analítica pré-parto registada.'
+    importGuidance: 'Grávidas no 3.º trimestre sem rastreio de SGB ou analítica pré-parto registada.',
+    professionalScope: 'medico'
   },
   {
     number: 384,
@@ -323,7 +385,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Todos os recém-nascidos inscritos na USF',
     clinicalObjective: 'Articulação entre a vigilância pré-natal e a inscrição atempada do recém-nascido.',
     calculationSummary: 'Recém-nascidos cujo processo clínico se encontra devidamente associado ao processo materno com gravidez codificada.',
-    importGuidance: 'Inscrições recentes de bebés sem ligação ao processo materno ou sem codificação de gravidez anterior.'
+    importGuidance: 'Inscrições recentes de bebés sem ligação ao processo materno ou sem codificação de gravidez anterior.',
+    professionalScope: 'partilhado'
   },
   {
     number: 397,
@@ -336,7 +399,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes registados com hábitos tabágicos ativos (P17)',
     clinicalObjective: 'Intervenção breve sistemática de cessação tabágica segundo a DGS.',
     calculationSummary: 'Fumadores com intervenção breve ou muito breve documentada nos últimos 12 meses.',
-    importGuidance: 'Utentes fumadores com consulta recente mas sem código de intervenção breve registado.'
+    importGuidance: 'Utentes fumadores com consulta recente mas sem código de intervenção breve registado.',
+    professionalScope: 'partilhado'
   },
   {
     number: 404,
@@ -349,7 +413,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Fumadores inscritos em programas ou acompanhados para cessação',
     clinicalObjective: 'Taxa de sucesso na cessação tabágica sustentada por mais de 6 meses.',
     calculationSummary: 'Rácio de ex-fumadores com abstinência confirmada no período de avaliação.',
-    importGuidance: 'Utentes em fase de desmame ou processo de cessação tabágica para consulta de seguimento.'
+    importGuidance: 'Utentes em fase de desmame ou processo de cessação tabágica para consulta de seguimento.',
+    professionalScope: 'partilhado'
   },
   {
     number: 435,
@@ -362,7 +427,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com 65 ou mais anos e grupos de risco prioritários',
     clinicalObjective: 'Cobertura vacinal sazonal contra a gripe na população idosa de acordo com metas da OMS/DGS.',
     calculationSummary: 'Percentagem de utentes ≥ 65 anos com vacina da gripe administrada na época vacinal corrente.',
-    importGuidance: 'Utentes ≥ 65 anos sem registo de vacinação antigripal durante o período de campanha de outono/inverno.'
+    importGuidance: 'Utentes ≥ 65 anos sem registo de vacinação antigripal durante o período de campanha de outono/inverno.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 409,
@@ -375,7 +441,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'População padrão da USF',
     clinicalObjective: 'Evitar o uso crónico e dependência de benzodiazepinas e fármacos Z.',
     calculationSummary: 'Percentagem de utentes que NÃO recebem prescrição prolongada (>6 meses contínuos) de BZD ou similares.',
-    importGuidance: 'Doentes com consumo crónico de BZD há mais de 180 dias para plano de desmame gradual com o médico de família.'
+    importGuidance: 'Doentes com consumo crónico de BZD há mais de 180 dias para plano de desmame gradual com o médico de família.',
+    professionalScope: 'medico'
   },
 
   // ----------------------------------------------------
@@ -392,7 +459,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico codificado de Hipertensão Arterial (K86/K87)',
     clinicalObjective: 'Controlo tensional eficaz (PA < 140/90 mmHg ou valor alvo individualizado) na última medição.',
     calculationSummary: 'Hipertensos com valor de PA registado nos últimos 12 meses em nível controlado.',
-    importGuidance: 'Excel de hipertensos sem medição de PA no último ano ou com último registo descontrolado (≥140/90).'
+    importGuidance: 'Excel de hipertensos sem medição de PA no último ano ou com último registo descontrolado (≥140/90).',
+    professionalScope: 'partilhado'
   },
   {
     number: 23,
@@ -405,7 +473,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes hipertensos dos 40 aos 65 anos',
     clinicalObjective: 'Estratificação do risco cardiovascular global através da ferramenta SCORE / SCORE2.',
     calculationSummary: 'Hipertensos com cálculo e registo do risco cardiovascular atualizado nos últimos 3 anos.',
-    importGuidance: 'Utentes hipertensos sem cálculo SCORE/SCORE2 atualizado no SClínico para cálculo na próxima consulta.'
+    importGuidance: 'Utentes hipertensos sem cálculo SCORE/SCORE2 atualizado no SClínico para cálculo na próxima consulta.',
+    professionalScope: 'partilhado'
   },
   {
     number: 36,
@@ -418,7 +487,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com Diabetes Mellitus (T89/T90)',
     clinicalObjective: 'Capacitação do utente diabético para autogestão da medicação, hipoglicemias e estilo de vida.',
     calculationSummary: 'Diabéticos com intervenção e diagnóstico de enfermagem de adesão terapêutica no ano civil.',
-    importGuidance: 'Diabéticos sem consulta de enfermagem com intervenção de Regime Terapêutico no ano corrente.'
+    importGuidance: 'Diabéticos sem consulta de enfermagem com intervenção de Regime Terapêutico no ano corrente.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 37,
@@ -431,7 +501,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Totalidade dos utentes diabéticos inscritos',
     clinicalObjective: 'Garantir vigilância multidisciplinar de enfermagem periódica aos diabéticos.',
     calculationSummary: 'Proporção de diabéticos que realizaram pelo menos 1 consulta de enfermagem de vigilância nos últimos 12 meses.',
-    importGuidance: 'Ficheiro de doentes diabéticos sem consulta de enfermagem no último ano civil.'
+    importGuidance: 'Ficheiro de doentes diabéticos sem consulta de enfermagem no último ano civil.',
+    professionalScope: 'enfermagem'
   },
   {
     number: 39,
@@ -444,7 +515,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Diabéticos com doseamento de HbA1c nos últimos 12 meses',
     clinicalObjective: 'Controlo glicémico com HbA1c em valor ótimo (em regra ≤ 7.0% ou ≤ 8.0% em idosos/comorbilidades).',
     calculationSummary: 'Percentagem de diabéticos vigiados com o último valor de HbA1c dentro do alvo terapêutico.',
-    importGuidance: 'Lista de diabéticos com HbA1c descontrolada (>8.0%) ou sem HbA1c nos últimos 12 meses para ajuste terapêutico.'
+    importGuidance: 'Lista de diabéticos com HbA1c descontrolada (>8.0%) ou sem HbA1c nos últimos 12 meses para ajuste terapêutico.',
+    professionalScope: 'medico'
   },
   {
     number: 49,
@@ -457,7 +529,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico codificado de DPOC (R95)',
     clinicalObjective: 'Confirmação diagnóstica e estadiamento da limitação do débito aéreo por espirometria.',
     calculationSummary: 'Utentes com DPOC com pelo menos uma espirometria registada com prova de broncodilatação.',
-    importGuidance: 'Doentes com DPOC sem prova de função respiratória no processo para prescrição de espirometria.'
+    importGuidance: 'Doentes com DPOC sem prova de função respiratória no processo para prescrição de espirometria.',
+    professionalScope: 'medico'
   },
   {
     number: 261,
@@ -470,7 +543,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico de Diabetes Mellitus',
     clinicalObjective: 'Exame podológico anual sistemático (monofilamento, palpação de pulsos, inspeção de deformidades).',
     calculationSummary: 'Diabéticos com avaliação formal e registo de estratificação do pé de risco nos últimos 12 meses.',
-    importGuidance: 'Doentes diabéticos sem registo de exame aos pés nos últimos 12 meses para agendamento com enfermagem.'
+    importGuidance: 'Doentes diabéticos sem registo de exame aos pés nos últimos 12 meses para agendamento com enfermagem.',
+    professionalScope: 'partilhado'
   },
   {
     number: 274,
@@ -483,7 +557,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Diabéticos tipo 2 com falência de antidiabéticos orais',
     clinicalObjective: 'Instituição atempada de insulina e titulação terapêutica sem inércia clínica.',
     calculationSummary: 'Diabéticos tipo 2 elegíveis para insulinoterapia a cumprir plano adequado.',
-    importGuidance: 'Utentes diabéticos com HbA1c persistente elevada com terapêutica oral máxima para ponderar insulinização.'
+    importGuidance: 'Utentes diabéticos com HbA1c persistente elevada com terapêutica oral máxima para ponderar insulinização.',
+    professionalScope: 'medico'
   },
   {
     number: 275,
@@ -496,7 +571,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Novos diagnósticos de Diabetes tipo 2 no ano civil',
     clinicalObjective: 'Cumprimento das recomendações de primeira linha farmacológica (metformina) na ausência de contraindicação.',
     calculationSummary: 'Percentagem de novos diabéticos iniciados com metformina como fármaco de 1.ª linha.',
-    importGuidance: 'Novos diagnósticos de diabetes sem prescrição ativa de metformina para revisão de contraindicações.'
+    importGuidance: 'Novos diagnósticos de diabetes sem prescrição ativa de metformina para revisão de contraindicações.',
+    professionalScope: 'medico'
   },
   {
     number: 314,
@@ -509,7 +585,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Diabéticos com hipertensão arterial concomitante',
     clinicalObjective: 'Minimizar a percentagem de diabéticos com PA não controlada (alvo < 130/80 mmHg).',
     calculationSummary: 'Taxa de doentes com PA descontrolada (quanto menor melhor, dentro do intervalo [0; 15]).',
-    importGuidance: 'Diabéticos com pressão arterial superior aos limites de segurança para reforço anti-hipertensor.'
+    importGuidance: 'Diabéticos com pressão arterial superior aos limites de segurança para reforço anti-hipertensor.',
+    professionalScope: 'partilhado'
   },
   {
     number: 315,
@@ -522,7 +599,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes diabéticos com perfil lipídico avaliado',
     clinicalObjective: 'Controlo do c-LDL (<70 mg/dL ou <55 mg/dL consoante risco) para redução de eventos coronários.',
     calculationSummary: 'Percentagem de diabéticos com doseamento de LDL nos últimos 12 meses dentro do alvo.',
-    importGuidance: 'Diabéticos sem perfil lipídico recente ou com c-LDL acima da meta para estatinas/ezetimiba.'
+    importGuidance: 'Diabéticos sem perfil lipídico recente ou com c-LDL acima da meta para estatinas/ezetimiba.',
+    professionalScope: 'medico'
   },
   {
     number: 380,
@@ -535,7 +613,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com prescrição frequente de broncodilatadores/corticoides inalados',
     clinicalObjective: 'Evitar subdiagnóstico e garantir codificação formal na lista de problemas ativos.',
     calculationSummary: 'Rácio de doentes sob medicação respiratória com diagnóstico ICPC-2 (R95/R96) registado no processo.',
-    importGuidance: 'Utentes que levantam inaladores crónicos sem código diagnóstico associado na ficha clínica.'
+    importGuidance: 'Utentes que levantam inaladores crónicos sem código diagnóstico associado na ficha clínica.',
+    professionalScope: 'medico'
   },
   {
     number: 436,
@@ -548,7 +627,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico codificado de DPOC',
     clinicalObjective: 'Consulta programada anual com avaliação do impacto da dispneia (mMRC/CAT), técnica inalatória e exacerbações.',
     calculationSummary: 'Proporção de doentes com DPOC com consulta médica ou de enfermagem nos últimos 12 meses.',
-    importGuidance: 'Utentes com DPOC sem consulta médica há mais de um ano para convocatória e revisão de inaladores.'
+    importGuidance: 'Utentes com DPOC sem consulta médica há mais de um ano para convocatória e revisão de inaladores.',
+    professionalScope: 'partilhado'
   },
   {
     number: 437,
@@ -561,7 +641,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Utentes com diagnóstico de Asma brônquica (R96)',
     clinicalObjective: 'Avaliação anual do controlo dos sintomas asmáticos (ACT/GINA) e revisão do plano de ação para crises.',
     calculationSummary: 'Percentagem de asmáticos com pelo menos uma consulta de vigilância realizada no último ano.',
-    importGuidance: 'Lista de asmáticos sem consulta nos últimos 12 meses ou com registo de idas frequentes à urgência.'
+    importGuidance: 'Lista de asmáticos sem consulta nos últimos 12 meses ou com registo de idas frequentes à urgência.',
+    professionalScope: 'partilhado'
   },
 
   // ----------------------------------------------------
@@ -578,7 +659,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'População padrão ajustada da lista da USF',
     clinicalObjective: 'Uso racional de medicamentos, fomento de genéricos e prescrição eficiente de acordo com as normas.',
     calculationSummary: 'Despesa média com medicamentos prescritos por utente padrão ponderado pelo risco.',
-    importGuidance: 'Análise de prescrições de custo elevado e fármacos sem ganho terapêutico comprovado.'
+    importGuidance: 'Análise de prescrições de custo elevado e fármacos sem ganho terapêutico comprovado.',
+    professionalScope: 'medico'
   },
   {
     number: 354,
@@ -591,7 +673,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'População padrão ajustada da lista da USF',
     clinicalObjective: 'Adequação técnico-científica na solicitação de exames laboratoriais e radiológicos sem sobrediagnóstico.',
     calculationSummary: 'Custo médio com Meios Complementares de Diagnóstico e Terapêutica prescritos por utente padrão.',
-    importGuidance: 'Monitorização da periodicidade e conformidade de requisições de análises e exames com os protocolos clínicos.'
+    importGuidance: 'Monitorização da periodicidade e conformidade de requisições de análises e exames com os protocolos clínicos.',
+    professionalScope: 'medico'
   },
 
   // ----------------------------------------------------
@@ -608,7 +691,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'População inscrita com condições sensíveis aos cuidados ambulatórios',
     clinicalObjective: 'Redução de hospitalizações por descompensação de insuficiência cardíaca, DPOC, diabetes ou infeções tratáveis.',
     calculationSummary: 'Taxa padronizada de internamentos hospitalares por causas passíveis de prevenção nos CSP.',
-    importGuidance: 'Revisão clínica pós-alta de doentes que estiveram internados para reforço de vigilância domiciliária/USF.'
+    importGuidance: 'Revisão clínica pós-alta de doentes que estiveram internados para reforço de vigilância domiciliária/USF.',
+    professionalScope: 'partilhado'
   },
   {
     number: 412,
@@ -621,7 +705,8 @@ export const USF_INDICATORS: USFIndicator[] = [
     targetCohort: 'Episódios de doença aguda da população inscrita',
     clinicalObjective: 'Resposta rápida a agudizações na USF no próprio dia, evitando o recurso desnecessário à urgência hospitalar.',
     calculationSummary: 'Proporção de consultas de doença aguda atendidas na USF versus idas ao Serviço de Urgência.',
-    importGuidance: 'Gestão das vagas de intersubstituição e consulta aberta da equipa de família.'
+    importGuidance: 'Gestão das vagas de intersubstituição e consulta aberta da equipa de família.',
+    professionalScope: 'partilhado'
   }
 ];
 

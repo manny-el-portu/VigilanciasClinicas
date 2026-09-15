@@ -20,9 +20,12 @@ import {
   Building2,
   Clock,
   UserCheck,
-  Scale
+  Scale,
+  Stethoscope,
+  Syringe,
+  Users,
 } from 'lucide-react';
-import { USFIndicator, IndicatorDimension } from '../types';
+import { USFIndicator, IndicatorDimension, ProfessionalScope, AppSettings } from '../types';
 import {
   USF_INDICATORS,
   DIMENSION_SUMMARIES,
@@ -30,25 +33,54 @@ import {
   INSTITUTIONAL_INCENTIVE_SCALES,
   INSTITUTIONAL_INCENTIVE_AMOUNTS,
   getSdmBiUrl,
+  getIndicatorScope,
 } from '../data/indicatorsData';
 
 interface IndicatorsViewProps {
   onNavigateToSurveillances?: () => void;
+  settings?: AppSettings;
+  onUpdateSettings?: (newSettings: AppSettings) => void;
 }
 
 export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
   onNavigateToSurveillances,
+  settings,
+  onUpdateSettings,
 }) => {
   const [selectedDimension, setSelectedDimension] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'ide' | 'incentivos'>('ide');
   const [selectedIndicator, setSelectedIndicator] = useState<USFIndicator | null>(null);
 
-  // Filter indicators
+  // Professional scope filter ('medico' | 'enfermagem' | 'all')
+  const [localProfFilter, setLocalProfFilter] = useState<'medico' | 'enfermagem' | 'all'>('medico');
+  const currentProfFilter = settings?.professionalFilter || localProfFilter;
+
+  const handleSetProfFilter = (filter: 'medico' | 'enfermagem' | 'all') => {
+    setLocalProfFilter(filter);
+    if (settings && onUpdateSettings) {
+      onUpdateSettings({
+        ...settings,
+        professionalFilter: filter,
+      });
+    }
+  };
+
+  // Helper to check if indicator matches professional filter with fallback
+  const isIndicatorInScope = (ind: USFIndicator, filter: 'medico' | 'enfermagem' | 'all'): boolean => {
+    if (filter === 'all') return true;
+    const scope = ind.professionalScope || getIndicatorScope(ind);
+    return scope === 'partilhado' || scope === filter;
+  };
+
+  // Filter indicators by dimension, professional scope and search query
   const filteredIndicators = useMemo(() => {
     return USF_INDICATORS.filter((ind) => {
       const matchesDim =
         selectedDimension === 'all' || ind.dimension === selectedDimension;
+
+      const matchesProf = isIndicatorInScope(ind, currentProfFilter);
+
       const query = searchQuery.toLowerCase().trim();
       const matchesQuery =
         !query ||
@@ -56,9 +88,69 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
         ind.name.toLowerCase().includes(query) ||
         ind.dimension.toLowerCase().includes(query) ||
         (ind.clinicalObjective && ind.clinicalObjective.toLowerCase().includes(query));
-      return matchesDim && matchesQuery;
+
+      return matchesDim && matchesProf && matchesQuery;
     });
-  }, [selectedDimension, searchQuery]);
+  }, [selectedDimension, searchQuery, currentProfFilter]);
+
+  // Dynamic calculations according to active professional scope
+  const totalVisibleWeight = useMemo(() => {
+    return filteredIndicators.reduce((acc, curr) => acc + curr.weight, 0);
+  }, [filteredIndicators]);
+
+  const totalPossibleWeightInScope = useMemo(() => {
+    return USF_INDICATORS.filter((ind) =>
+      isIndicatorInScope(ind, currentProfFilter)
+    ).reduce((acc, curr) => acc + curr.weight, 0);
+  }, [currentProfFilter]);
+
+  const totalCountInScope = useMemo(() => {
+    return USF_INDICATORS.filter((ind) =>
+      isIndicatorInScope(ind, currentProfFilter)
+    ).length;
+  }, [currentProfFilter]);
+
+  const dimensionStats = useMemo(() => {
+    const stats: Record<string, { count: number; weight: number }> = {};
+    DIMENSION_SUMMARIES.forEach((d) => {
+      stats[d.dimension] = { count: 0, weight: 0 };
+    });
+    USF_INDICATORS.forEach((ind) => {
+      const matchesProf = isIndicatorInScope(ind, currentProfFilter);
+      if (matchesProf && stats[ind.dimension]) {
+        stats[ind.dimension].count += 1;
+        stats[ind.dimension].weight += ind.weight;
+      }
+    });
+    return stats;
+  }, [currentProfFilter]);
+
+  const getProfessionalBadge = (scope?: ProfessionalScope) => {
+    const resolvedScope = scope || 'medico';
+    switch (resolvedScope) {
+      case 'medico':
+        return (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center space-x-1">
+            <Stethoscope className="w-2.5 h-2.5 text-blue-600" />
+            <span>Médico</span>
+          </span>
+        );
+      case 'enfermagem':
+        return (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center space-x-1">
+            <Syringe className="w-2.5 h-2.5 text-emerald-600" />
+            <span>Enfermagem</span>
+          </span>
+        );
+      case 'partilhado':
+        return (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center space-x-1">
+            <Users className="w-2.5 h-2.5 text-purple-600" />
+            <span>Partilhado</span>
+          </span>
+        );
+    }
+  };
 
   // Dimension color helpers
   const getDimensionBadgeColor = (dim: IndicatorDimension) => {
@@ -197,6 +289,65 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
 
       {activeSubTab === 'ide' ? (
         <>
+          {/* Professional Scope Filter Bar (Toggle: Médicos / Enfermagem / Todos) */}
+          <div className="bg-white rounded-2xl p-3.5 border border-zinc-200/90 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-semibold text-zinc-700 flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                <span>Âmbito Profissional:</span>
+              </span>
+              <div className="inline-flex p-1 bg-zinc-100 rounded-xl border border-zinc-200/80 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => handleSetProfFilter('medico')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 ${
+                    currentProfFilter === 'medico'
+                      ? 'bg-white text-blue-700 shadow-xs border border-zinc-200 font-bold'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/50'
+                  }`}
+                  title="Apresenta indicadores de intervenção médica e de responsabilidade partilhada"
+                >
+                  <Stethoscope className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Médicos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSetProfFilter('enfermagem')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 ${
+                    currentProfFilter === 'enfermagem'
+                      ? 'bg-white text-emerald-700 shadow-xs border border-zinc-200 font-bold'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/50'
+                  }`}
+                  title="Apresenta indicadores de intervenção de enfermagem e de responsabilidade partilhada"
+                >
+                  <Syringe className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Enfermagem</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSetProfFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 ${
+                    currentProfFilter === 'all'
+                      ? 'bg-white text-zinc-900 shadow-xs border border-zinc-200 font-bold'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/50'
+                  }`}
+                  title="Apresenta todos os 43 indicadores da carteira de serviços da USF"
+                >
+                  <Users className="w-3.5 h-3.5 text-zinc-700" />
+                  <span>Todos</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 text-xs text-zinc-500">
+              <span>
+                A visualizar <strong className="text-zinc-800">{filteredIndicators.length}</strong> de {totalCountInScope} indicadores ({totalVisibleWeight.toFixed(1)} de {totalPossibleWeightInScope.toFixed(1)} pts)
+              </span>
+            </div>
+          </div>
+
           {/* Dimension Cards / Quick Filter Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             <button
@@ -209,16 +360,20 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-[11px] font-semibold uppercase tracking-wider opacity-80">Todas</span>
-                <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-zinc-800/10 dark:bg-white/20">39</span>
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-zinc-800/10 dark:bg-white/20">
+                  {totalCountInScope}
+                </span>
               </div>
               <div className="mt-2">
-                <span className="text-base font-bold">100 pts</span>
+                <span className="text-base font-bold">{totalPossibleWeightInScope.toFixed(1)} pts</span>
                 <span className="text-[10px] block opacity-70">Todas as dimensões</span>
               </div>
             </button>
 
             {DIMENSION_SUMMARIES.map((dim) => {
               const isSelected = selectedDimension === dim.dimension;
+              const currentDimCount = dimensionStats[dim.dimension]?.count || 0;
+              const currentDimWeight = dimensionStats[dim.dimension]?.weight || 0;
               return (
                 <button
                   key={dim.dimension}
@@ -236,12 +391,12 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                         isSelected ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
                       }`}
                     >
-                      {dim.count}
+                      {currentDimCount}
                     </span>
                   </div>
                   <div className="mt-2">
-                    <span className="text-base font-bold">{dim.totalWeight.toFixed(1)} pts</span>
-                    <span className="text-[10px] block opacity-70 truncate">{dim.count} indicadores</span>
+                    <span className="text-base font-bold">{currentDimWeight.toFixed(1)} pts</span>
+                    <span className="text-[10px] block opacity-70 truncate">{currentDimCount} indicadores</span>
                   </div>
                 </button>
               );
@@ -270,7 +425,9 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 w-full sm:w-auto justify-between sm:justify-end">
-              <span>A exibir <strong>{filteredIndicators.length}</strong> de 39 indicadores</span>
+              <span>
+                A exibir <strong>{filteredIndicators.length}</strong> de {totalCountInScope} indicadores ({totalVisibleWeight.toFixed(1)} pts)
+              </span>
               <span className="text-zinc-300 hidden sm:inline">|</span>
               <span className="text-sky-700 font-medium flex items-center space-x-1 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                 <ExternalLink className="w-3 h-3 text-sky-600" />
@@ -297,7 +454,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                       >
                         {ind.number}
                       </span>
-                      <div>
+                      <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getDimensionBadgeColor(
                             ind.dimension
@@ -305,6 +462,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                         >
                           {ind.dimension}
                         </span>
+                        {getProfessionalBadge(ind.professionalScope || getIndicatorScope(ind))}
                       </div>
                     </div>
 
@@ -484,7 +642,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                   {selectedIndicator.number}
                 </span>
                 <div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getDimensionBadgeColor(
                         selectedIndicator.dimension
@@ -492,6 +650,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                     >
                       {selectedIndicator.dimension}
                     </span>
+                    {getProfessionalBadge(selectedIndicator.professionalScope || getIndicatorScope(selectedIndicator))}
                     <span className="text-xs font-bold text-zinc-900 bg-zinc-200/80 px-2 py-0.5 rounded-md">
                       Ponderação: {selectedIndicator.weight.toFixed(1)} pts
                     </span>

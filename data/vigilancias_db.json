@@ -1,0 +1,15 @@
+{
+  "patients": [],
+  "surveillanceItems": [],
+  "settings": {
+    "autostartWindows": true,
+    "startMinimizedTray": true,
+    "desktopNotifications": true,
+    "notificationSound": true,
+    "leadDaysNotice": 30,
+    "autoCheckIntervalMinutes": 60,
+    "clinicalNoteTemplateFormat": "compact",
+    "professionalFilter": "medico"
+  },
+  "lastSaved": "2026-09-15T21:53:06.412Z"
+}

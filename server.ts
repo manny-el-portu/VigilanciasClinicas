@@ -1,6 +1,8 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import fs from "fs";
+import { exec } from "child_process";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -57,6 +59,7 @@ function saveDbToDisk(data: any) {
 
 async function startServer() {
   const app = express();
+  const server = http.createServer(app);
   const PORT = 3000;
 
   app.use(express.json({ limit: "50mb" }));
@@ -286,7 +289,15 @@ Escreve um texto compacto, claro e profissional em português de Portugal, pront
   // Vite middleware for dev or static server for production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: {
+          server,
+        },
+        watch: {
+          ignored: ["**/vigilancias_db.json", "**/data/*.json", "**/.git/**"],
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -298,8 +309,19 @@ Escreve um texto compacto, claro e profissional em português de Portugal, pront
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Vigilâncias] Servidor a correr em http://localhost:${PORT}`);
+  server.listen(PORT, "0.0.0.0", () => {
+    const url = `http://localhost:${PORT}`;
+    console.log(`[Vigilâncias] Servidor a correr em ${url}`);
+
+    if (process.env.NODE_ENV !== "production" && !process.env.TAURI_ENV_PLATFORM) {
+      const openCmd =
+        process.platform === "win32"
+          ? `start "" "${url}"`
+          : process.platform === "darwin"
+          ? `open "${url}"`
+          : `xdg-open "${url}"`;
+      exec(openCmd);
+    }
   });
 }
 

@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   leadDaysNotice: 30,
   autoCheckIntervalMinutes: 60,
   clinicalNoteTemplateFormat: 'compact',
+  professionalFilter: 'medico',
 };
 
 // Validate Portuguese SNS number (9 digits)

@@ -528,6 +528,8 @@ export default function App() {
           ) : activeTab === 'indicators' ? (
             <IndicatorsView
               onNavigateToSurveillances={() => setActiveTab('all')}
+              settings={settings}
+              onUpdateSettings={(newS) => setSettings(newS)}
             />
           ) : activeTab === 'settings' ? (
             <WindowsSettingsView

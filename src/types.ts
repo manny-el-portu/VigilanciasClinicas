@@ -68,6 +68,7 @@ export interface AppSettings {
   leadDaysNotice: number; // Days before target date to flag as "Due soon" (default 30)
   autoCheckIntervalMinutes: number;
   clinicalNoteTemplateFormat: 'compact' | 'detailed' | 'bullet';
+  professionalFilter?: 'medico' | 'enfermagem' | 'all';
 }
 
 export interface MedicalPreset {
@@ -99,6 +100,8 @@ export type IndicatorDimension =
   | 'Qualificação da Prescrição'
   | 'Integração de Cuidados';
 
+export type ProfessionalScope = 'medico' | 'enfermagem' | 'partilhado';
+
 export interface USFIndicator {
   number: number;
   name: string;
@@ -112,4 +115,5 @@ export interface USFIndicator {
   calculationSummary?: string;
   importGuidance?: string;
   sdmUrl?: string;
+  professionalScope: ProfessionalScope;
 }
