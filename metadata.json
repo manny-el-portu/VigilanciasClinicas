@@ -1,6 +1,6 @@
 {
   "name": "Vigilâncias Clínicas",
-  "description": "Gestão e lembretes de vigilâncias médicas regulares (exame, SNS, sexo, idade, notificações em segundo plano e arranque com Windows).",
+  "description": "Gestão e lembretes de vigilâncias médicas regulares e acompanhamento de indicadores de desempenho da USF (IDE - Portaria n.º 411-A/2023).",
   "requestFramePermissions": ["notifications"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

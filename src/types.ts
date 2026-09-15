@@ -91,3 +91,25 @@ export interface GuidelineResponse {
   guidelineSource: string;
   urgency: PriorityLevel;
 }
+
+export type IndicatorDimension =
+  | 'Acesso'
+  | 'Gestão da Saúde'
+  | 'Gestão da Doença'
+  | 'Qualificação da Prescrição'
+  | 'Integração de Cuidados';
+
+export interface USFIndicator {
+  number: number;
+  name: string;
+  dimension: IndicatorDimension;
+  weight: number;
+  expectedValues: string;
+  acceptableVariations: string;
+  unit?: string;
+  targetCohort?: string;
+  clinicalObjective?: string;
+  calculationSummary?: string;
+  importGuidance?: string;
+  sdmUrl?: string;
+}

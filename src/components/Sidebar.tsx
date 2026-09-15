@@ -10,7 +10,9 @@ import {
   PlusCircle,
   FileSpreadsheet,
   CheckCircle2,
-  BellRing
+  BellRing,
+  Target,
+  Award
 } from 'lucide-react';
 import { SurveillanceItem } from '../types';
 
@@ -37,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }).length;
   const totalActive = surveillanceItems.filter((i) => i.status !== 'realizado').length;
 
-  const navItems = [
+  const surveillanceNavItems = [
     {
       id: 'all',
       label: 'Todas as Vigilâncias',
@@ -74,10 +76,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Protocolos & Assistente IA',
       icon: BookOpen,
     },
+  ];
+
+  const contractNavItems = [
     {
-      id: 'settings',
-      label: 'Configurações',
-      icon: Settings,
+      id: 'indicators',
+      label: 'Indicadores USF (IDE)',
+      icon: Target,
+      badge: '39 Ind.',
+      badgeColor: 'bg-indigo-100 text-indigo-800 font-semibold',
+      sublabel: 'Portaria 411-A/2023',
     },
   ];
 
@@ -93,12 +101,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>Nova Vigilância</span>
         </button>
 
-        {/* Navigation list */}
+        {/* Section 1: Vigilâncias Clínicas Individuais */}
         <div className="space-y-1">
-          <p className="px-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-            Vistas & Listagens
+          <p className="px-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+            Vigilâncias Clínicas
           </p>
-          {navItems.map((item) => {
+          {surveillanceNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -129,6 +137,73 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
+        </div>
+
+        {/* Section 2: Desempenho e Contratualização USF (Separated functionality) */}
+        <div className="space-y-1 pt-2 border-t border-zinc-200/70">
+          <div className="px-2 flex items-center justify-between mb-1.5">
+            <p className="text-[10px] font-semibold text-indigo-700 uppercase tracking-wider">
+              Desempenho da USF
+            </p>
+            <span className="text-[9px] text-zinc-400 font-medium">Portaria 411-A</span>
+          </div>
+          {contractNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelectTab(item.id)}
+                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition ${
+                  isActive
+                    ? 'bg-indigo-50 text-indigo-950 border border-indigo-200/80 shadow-2xs font-semibold'
+                    : 'text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-900'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Icon
+                    className={`w-4 h-4 ${
+                      isActive ? 'text-indigo-600' : 'text-indigo-500'
+                    }`}
+                  />
+                  <div className="text-left">
+                    <span className="block">{item.label}</span>
+                  </div>
+                </div>
+                {item.badge !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.5 text-[10px] rounded-full border border-indigo-200 ${item.badgeColor}`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Section 3: Sistema & Configurações */}
+        <div className="space-y-1 pt-2 border-t border-zinc-200/70">
+          <p className="px-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+            Geral
+          </p>
+          <button
+            onClick={() => onSelectTab('settings')}
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
+              activeTab === 'settings'
+                ? 'bg-zinc-200/80 text-zinc-900 shadow-2xs font-semibold'
+                : 'text-zinc-600 hover:bg-zinc-200/40 hover:text-zinc-900'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <Settings
+                className={`w-4 h-4 ${
+                  activeTab === 'settings' ? 'text-indigo-600' : 'text-zinc-400 group-hover:text-zinc-600'
+                }`}
+              />
+              <span>Configurações</span>
+            </div>
+          </button>
         </div>
       </div>
 

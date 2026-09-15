@@ -6,6 +6,7 @@ import { PatientsView } from './components/PatientsView';
 import { TimelineView } from './components/TimelineView';
 import { GuidelinesView } from './components/GuidelinesView';
 import { WindowsSettingsView } from './components/WindowsSettingsView';
+import { IndicatorsView } from './components/IndicatorsView';
 import { SurveillanceModal } from './components/SurveillanceModal';
 import { ClinicalNoteExportModal } from './components/ClinicalNoteExportModal';
 import { Patient, SurveillanceItem, AppSettings, MedicalPreset } from './types';
@@ -523,6 +524,10 @@ export default function App() {
                 setEditingItem(null);
                 setIsNewModalOpen(true);
               }}
+            />
+          ) : activeTab === 'indicators' ? (
+            <IndicatorsView
+              onNavigateToSurveillances={() => setActiveTab('all')}
             />
           ) : activeTab === 'settings' ? (
             <WindowsSettingsView
